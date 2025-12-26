@@ -1,0 +1,22 @@
+.plintus-editor {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #f5f5f5;
+}
+
+.plintus-editor-content {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+}
+
+.plintus-editor-canvas-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+

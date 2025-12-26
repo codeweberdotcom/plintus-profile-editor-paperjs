@@ -1,0 +1,73 @@
+.plintus-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    justify-content: space-between;
+}
+
+.plintus-toolbar-section {
+    display: flex;
+    gap: 0;
+    align-items: center;
+}
+
+.plintus-toolbar-section-right {
+    margin-left: auto;
+}
+
+.plintus-tool-button {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #ddd;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    transition: all 0.2s;
+}
+
+.plintus-tool-button:hover {
+    background: #f0f0f0;
+    border-color: #0073aa;
+}
+
+.plintus-tool-button.active {
+    background: #0073aa;
+    color: #fff;
+    border-color: #0073aa;
+}
+
+.plintus-toolbar button {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #ddd;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    transition: all 0.2s;
+}
+
+.plintus-toolbar button:hover {
+    background: #f0f0f0;
+    border-color: #0073aa;
+}
+
+.plintus-toolbar button.active {
+    background: #0073aa;
+    color: #fff;
+    border-color: #0073aa;
+}
+
+.plintus-toolbar button i {
+    font-size: 18px;
+}
+
