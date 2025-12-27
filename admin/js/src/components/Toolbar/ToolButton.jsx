@@ -9,10 +9,11 @@ function ToolButton({ tool, isActive, onClick }) {
             onClick={onClick}
             title={tool.label}
         >
-            <i className={`uil ${tool.icon}`}></i>
+            <i className={`fs-28 uil ${tool.icon}`}></i>
         </button>
     );
 }
 
 export default ToolButton;
+
 

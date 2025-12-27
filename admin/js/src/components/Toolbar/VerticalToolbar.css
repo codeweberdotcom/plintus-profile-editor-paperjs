@@ -1,0 +1,51 @@
+.plintus-vertical-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px;
+    background: #fff;
+    border-right: 1px solid #ddd;
+    width: 120px;
+    gap: 5px;
+}
+
+.plintus-vertical-tool-button {
+    width: 100%;
+    min-height: 50px;
+    border: 1px solid #ddd;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 5px;
+    margin: 0;
+    transition: all 0.2s;
+    gap: 4px;
+}
+
+.plintus-vertical-tool-button:hover {
+    background: #f0f0f0;
+    border-color: #0073aa;
+}
+
+.plintus-vertical-tool-button.active {
+    background: #0073aa;
+    color: #fff;
+    border-color: #0073aa;
+}
+
+.plintus-vertical-tool-button-text {
+    font-size: 12px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.plintus-vertical-tool-button i {
+    font-size: 24px;
+}
+
+
+

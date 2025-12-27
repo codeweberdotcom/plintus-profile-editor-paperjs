@@ -60,3 +60,8 @@ register_deactivation_hook(__FILE__, function() {
     flush_rewrite_rules();
 });
 
+
+
+
+
+

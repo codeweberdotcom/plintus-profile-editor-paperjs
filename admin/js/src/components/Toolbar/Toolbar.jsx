@@ -4,13 +4,13 @@ import { useEditorStore } from '../../store/useEditorStore';
 import './Toolbar.css';
 
 function Toolbar() {
-    const { selectedTool, setSelectedTool, grid, toggleMajorLines, dimensionsVisible, toggleDimensionsVisible } = useEditorStore();
+    const { selectedTool, setSelectedTool, grid, toggleMajorLines, dimensionsVisible, toggleDimensionsVisible, orthogonalSnap, toggleOrthogonalSnap } = useEditorStore();
 
     const tools = [
-        { id: 'select', label: 'Select', icon: 'uil-vector-square' },
-        { id: 'line', label: 'Line', icon: 'uil-edit-alt' },
-        { id: 'arc', label: 'Arc', icon: 'uil-circle' },
-        { id: 'delete', label: 'Delete', icon: 'uil-trash-alt' },
+        { id: 'line', label: 'Рисование', icon: 'uil-edit-alt' },
+        { id: 'select', label: 'Редактировать', icon: 'uil-vector-square' },
+        { id: 'arc', label: 'Радиус', icon: 'uil-circle' },
+        { id: 'delete', label: 'Удаление', icon: 'uil-trash-alt' },
     ];
 
     return (
@@ -32,12 +32,24 @@ function Toolbar() {
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        toggleOrthogonalSnap();
+                    }}
+                    className={orthogonalSnap ? 'active' : ''}
+                    title="Toggle Orthogonal Snap"
+                >
+                    <i className="fs-28 uil uil-vector-square-alt"></i>
+                </button>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         toggleMajorLines();
                     }}
                     className={grid.showMajorLines ? 'active' : ''}
                     title="Show/Hide Major Grid Lines (10mm)"
                 >
-                    <i className="uil uil-grids"></i>
+                    <i className="fs-28 uil uil-grids"></i>
                 </button>
                 <button
                     type="button"
@@ -49,7 +61,7 @@ function Toolbar() {
                     className={dimensionsVisible ? 'active' : ''}
                     title="Show/Hide Dimensions"
                 >
-                    <i className="uil uil-ruler"></i>
+                    <i className="fs-28 uil uil-ruler"></i>
                 </button>
             </div>
         </div>
@@ -57,4 +69,5 @@ function Toolbar() {
 }
 
 export default Toolbar;
+
 

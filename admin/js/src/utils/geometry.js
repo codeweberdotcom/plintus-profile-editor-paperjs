@@ -26,7 +26,7 @@ export function pixelsToMM(pixels) {
  */
 export function formatLengthMM(lengthPixels) {
     const mm = pixelsToMM(lengthPixels);
-    return `${Math.round(mm * 10) / 10} mm`;
+    return `${Math.round(mm * 10) / 10} мм`;
 }
 
 /**
@@ -202,4 +202,7 @@ export function getArcLength(arc) {
     const angleRad = (arc.angle * Math.PI) / 180;
     return radius * angleRad;
 }
+
+
+
 

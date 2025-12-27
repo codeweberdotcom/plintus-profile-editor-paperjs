@@ -1,13 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
-import { formatLengthMM } from '../../utils/geometry';
+import { formatLengthMM, pixelsToMM, mmToPixels } from '../../utils/geometry';
 
 function ArcProperties({ element }) {
     const { updateElement } = useEditorStore();
-    
+    const [radiusMM, setRadiusMM] = useState(
+        element.radius ? Math.round(pixelsToMM(element.radius)) : 5
+    );
+    const [angle, setAngle] = useState(
+        element.angle ? Math.round(element.angle) : 90
+    );
+
+    // Синхронизируем значения с элементом при его изменении
+    useEffect(() => {
+        if (element.radius) {
+            const newRadiusMM = Math.round(pixelsToMM(element.radius));
+            setRadiusMM(newRadiusMM);
+        }
+        if (element.angle !== undefined) {
+            setAngle(Math.round(element.angle));
+        }
+    }, [element.radius, element.angle]);
+
+    const handleRadiusChange = (e) => {
+        const newValue = parseFloat(e.target.value);
+        if (!isNaN(newValue) && newValue > 0) {
+            setRadiusMM(newValue);
+            updateElement(element.id, {
+                radius: mmToPixels(newValue),
+            });
+        }
+    };
+
+    const handleAngleChange = (e) => {
+        const newValue = parseFloat(e.target.value);
+        if (!isNaN(newValue) && newValue >= 0 && newValue <= 360) {
+            setAngle(newValue);
+            updateElement(element.id, {
+                angle: newValue,
+            });
+        }
+    };
+
     // Вычисляем длину дуги
     const radius = element.radius || 0;
-    const angle = element.angle || 90;
     const angleRad = (angle * Math.PI) / 180;
     const arcLength = radius * angleRad;
     const arcLengthText = formatLengthMM(arcLength);
@@ -16,12 +52,29 @@ function ArcProperties({ element }) {
         <div className="arc-properties">
             <h4>Arc Properties</h4>
             <div className="property-item">
-                <label>Radius:</label>
-                <span className="property-value">{Math.round(radius)}px</span>
+                <label htmlFor="arc-radius">Radius (mm):</label>
+                <input
+                    id="arc-radius"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={radiusMM}
+                    onChange={handleRadiusChange}
+                    className="property-input"
+                />
             </div>
             <div className="property-item">
-                <label>Angle:</label>
-                <span className="property-value">{Math.round(angle)}°</span>
+                <label htmlFor="arc-angle">Angle (°):</label>
+                <input
+                    id="arc-angle"
+                    type="number"
+                    min="0"
+                    max="360"
+                    step="1"
+                    value={angle}
+                    onChange={handleAngleChange}
+                    className="property-input"
+                />
             </div>
             <div className="property-item">
                 <label>Length:</label>
@@ -32,4 +85,7 @@ function ArcProperties({ element }) {
 }
 
 export default ArcProperties;
+
+
+
 

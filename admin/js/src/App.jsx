@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import CanvasEditor from './components/Canvas/CanvasEditor';
 import Toolbar from './components/Toolbar/Toolbar';
+import VerticalToolbar from './components/Toolbar/VerticalToolbar';
 import PropertiesPanel from './components/Sidebar/PropertiesPanel';
 import { useEditorStore } from './store/useEditorStore';
 import { loadProfileData, saveProfileData } from './utils/api';
@@ -37,16 +38,18 @@ function App() {
         <div className="plintus-editor">
             <Toolbar />
             <div className="plintus-editor-content">
+                <VerticalToolbar />
                 <div className="plintus-editor-canvas-wrapper">
                     <CanvasEditor />
                 </div>
-                {selectedElements.length > 0 && (
-                    <PropertiesPanel elements={selectedElements} />
-                )}
+                <PropertiesPanel elements={selectedElements} />
             </div>
         </div>
     );
 }
 
 export default App;
+
+
+
 
