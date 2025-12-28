@@ -26,9 +26,9 @@ function FilletProperties({ element }) {
 
     return (
         <div className="fillet-properties">
-            <h4>Fillet Properties</h4>
+            <h4>Свойства скругления</h4>
             <div className="property-item">
-                <label htmlFor="fillet-radius">Radius (mm):</label>
+                <label htmlFor="fillet-radius">Скругление (мм):</label>
                 <input
                     id="fillet-radius"
                     type="number"

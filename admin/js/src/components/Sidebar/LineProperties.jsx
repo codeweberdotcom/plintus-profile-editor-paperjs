@@ -17,12 +17,12 @@ function LineProperties({ elements }) {
 
     return (
         <div className="line-properties">
-            <h4>Line Properties</h4>
+            <h4>Свойства линии</h4>
             {elements.length > 1 && (
-                <p className="line-count">Lines: {elements.length}</p>
+                <p className="line-count">Линий: {elements.length}</p>
             )}
             <div className="property-item">
-                <label>Length:</label>
+                <label>Длина:</label>
                 <span className="property-value">{totalLengthText}</span>
             </div>
         </div>

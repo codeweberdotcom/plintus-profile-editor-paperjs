@@ -12,6 +12,9 @@ function CanvasEditor() {
     const [containerSize, setContainerSize] = useState({ width: 800, height: 400 });
     const [draggingPoint, setDraggingPoint] = useState(null); // Array of { elementId, pointType: 'start' | 'end' }
     const [hoveredPoint, setHoveredPoint] = useState(null); // { elementId, pointType: 'start' | 'end' }
+    const [isPanning, setIsPanning] = useState(false); // Состояние для перетаскивания view
+    const [panStartPoint, setPanStartPoint] = useState(null); // Начальная точка для pan
+    const [initialViewCenter, setInitialViewCenter] = useState(null); // Исходный центр view
     
     const {
         elements,
@@ -19,6 +22,7 @@ function CanvasEditor() {
         selectedTool,
         grid,
         dimensionsVisible,
+        debugNumbersVisible,
         orthogonalSnap,
         currentLineStart,
         isDrawing,
@@ -33,6 +37,9 @@ function CanvasEditor() {
 
     const gridStepPixels = mmToPixels(grid.stepMM);
     const viewbox = useEditorStore((state) => state.viewbox);
+    const zoom = useEditorStore((state) => state.zoom);
+    const { zoomIn, zoomOut, setZoom, resetZoom } = useEditorStore();
+    const prevZoomRef = useRef(zoom); // Для отслеживания изменений zoom
 
     // Обновление размеров контейнера
     useEffect(() => {
@@ -82,9 +89,21 @@ function CanvasEditor() {
             const scope = new paper.PaperScope();
             scope.setup(canvas);
             
-            // Увеличиваем масштаб отображения в 2 раза
+            // Устанавливаем начальный масштаб
             scope.activate();
-            scope.view.scale(2, new paper.Point(width / 2, height / 2));
+            // Устанавливаем начальный масштаб 2x
+            const initialZoom = useEditorStore.getState().zoom;
+            scope.view.scale(initialZoom, new paper.Point(width / 2, height / 2));
+            
+            // Сохраняем исходный центр view (после установки масштаба)
+            // В Paper.js view.center - это центр видимой области в координатах проекта
+            // После масштабирования относительно центра canvas, центр view должен быть в центре canvas в координатах проекта
+            const savedCenter = scope.view.center.clone();
+            setInitialViewCenter(savedCenter);
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:101',message:'initial view center saved',data:{initialViewCenter:savedCenter,width,height,initialZoom},timestamp:Date.now(),sessionId:'debug-session',runId:'reset-view',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
             
             paperScopeRef.current = scope;
             setPaperProject(scope.project);
@@ -121,6 +140,160 @@ function CanvasEditor() {
         }
     }, [containerSize.width, containerSize.height, viewbox.width, viewbox.height]);
 
+    // Обновление масштаба при изменении zoom (только при программном изменении через кнопки)
+    // Масштабирование через wheel обрабатывается отдельно с учетом позиции курсора
+    useEffect(() => {
+        if (!paperScopeRef.current) {
+            return;
+        }
+
+        const scope = paperScopeRef.current;
+        scope.activate();
+        const width = containerSize.width || viewbox.width;
+        const height = containerSize.height || viewbox.height;
+        
+        // Проверяем, был ли сброс масштаба (zoom вернулся к 2)
+        const wasReset = prevZoomRef.current !== 2 && zoom === 2;
+        prevZoomRef.current = zoom;
+        
+        // Если был сброс, также сбрасываем позицию view к исходному центру
+        if (wasReset && initialViewCenter) {
+            scope.view.center = initialViewCenter;
+        }
+        
+        // Вычисляем текущий масштаб view
+        const currentScale = scope.view.zoom || 1;
+        const scaleFactor = zoom / currentScale;
+        
+        // При программном изменении масштабируем относительно центра canvas
+        scope.view.scale(scaleFactor, new paper.Point(width / 2, height / 2));
+        scope.view.draw();
+    }, [zoom, containerSize.width, containerSize.height, viewbox.width, viewbox.height, initialViewCenter]);
+
+    // Обработчик прокрутки колесика мыши для масштабирования относительно позиции курсора
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas || !paperScopeRef.current) return;
+
+        const handleWheel = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const scope = paperScopeRef.current;
+            if (!scope) return;
+
+            scope.activate();
+
+            // Получаем позицию курсора в координатах view (экранные координаты)
+            const rect = canvas.getBoundingClientRect();
+            const mousePoint = new paper.Point(
+                event.clientX - rect.left,
+                event.clientY - rect.top
+            );
+
+            // Вычисляем точку в координатах проекта (world coordinates)
+            const viewPoint = scope.view.viewToProject(mousePoint);
+
+            const delta = event.deltaY;
+            const zoomFactor = delta > 0 ? 0.9 : 1.1; // Уменьшение при прокрутке вниз, увеличение при прокрутке вверх
+            
+            const currentZoom = useEditorStore.getState().zoom;
+            const minZoom = useEditorStore.getState().getMinZoom();
+            const newZoom = Math.max(minZoom, Math.min(10, currentZoom * zoomFactor));
+            
+            // Применяем масштабирование относительно позиции курсора
+            const scaleFactor = newZoom / currentZoom;
+            scope.view.scale(scaleFactor, viewPoint);
+            
+            // Обновляем zoom в store
+            setZoom(newZoom);
+        };
+
+        canvas.addEventListener('wheel', handleWheel, { passive: false });
+        return () => {
+            canvas.removeEventListener('wheel', handleWheel);
+        };
+    }, [setZoom]);
+
+    // Обработчик перетаскивания view при зажатом колесике мыши
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas || !paperScopeRef.current) return;
+
+        const scope = paperScopeRef.current;
+
+        const handleMouseDown = (event) => {
+            // Проверяем, что нажата средняя кнопка мыши (колесико) или зажато колесико
+            if (event.button === 1 || event.buttons === 4) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                setIsPanning(true);
+                const rect = canvas.getBoundingClientRect();
+                setPanStartPoint({
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top,
+                    viewCenter: scope.view.center.clone()
+                });
+            }
+        };
+
+        const handleMouseMove = (event) => {
+            if (!isPanning || !panStartPoint) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            scope.activate();
+            const rect = canvas.getBoundingClientRect();
+            const currentViewPoint = new paper.Point(
+                event.clientX - rect.left,
+                event.clientY - rect.top
+            );
+            const startViewPoint = new paper.Point(panStartPoint.x, panStartPoint.y);
+
+            // Вычисляем смещение в экранных координатах (view coordinates)
+            const deltaView = currentViewPoint.subtract(startViewPoint);
+
+            // Преобразуем смещение в координаты проекта (world coordinates)
+            // Для этого используем текущий масштаб view
+            const zoom = scope.view.zoom || 1;
+            const deltaProject = deltaView.divide(zoom);
+
+            // Перемещаем центр view на величину смещения (в обратном направлении)
+            scope.view.center = panStartPoint.viewCenter.subtract(deltaProject);
+            scope.view.draw();
+        };
+
+        const handleMouseUp = (event) => {
+            if (event.button === 1 || event.buttons === 0) {
+                setIsPanning(false);
+                setPanStartPoint(null);
+            }
+        };
+
+        const handleContextMenu = (event) => {
+            // Предотвращаем контекстное меню при зажатом колесике
+            if (event.button === 1) {
+                event.preventDefault();
+            }
+        };
+
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', handleMouseUp);
+        canvas.addEventListener('contextmenu', handleContextMenu);
+
+        return () => {
+            canvas.removeEventListener('mousedown', handleMouseDown);
+            canvas.removeEventListener('mousemove', handleMouseMove);
+            canvas.removeEventListener('mouseup', handleMouseUp);
+            canvas.removeEventListener('mouseleave', handleMouseUp);
+            canvas.removeEventListener('contextmenu', handleContextMenu);
+        };
+    }, [isPanning, panStartPoint]);
+
     // Отрисовка элементов на canvas
     useEffect(() => {
         console.log('useEffect for rendering called, selectedTool:', selectedTool);
@@ -137,7 +310,7 @@ function CanvasEditor() {
 
         // Отрисовываем сетку
         if (grid.visible) {
-            drawGrid(scope, gridStepPixels, grid.showMajorLines);
+            drawGrid(scope, gridStepPixels, false);
         }
 
         // Находим все fillet для проверки выделения линий
@@ -168,7 +341,7 @@ function CanvasEditor() {
             }
         });
 
-        // В режиме "Радиус" отображаем все точки соединений между линиями
+        // В режиме "Скругление" отображаем все точки соединений между линиями
         // Отрисовываем ПОСЛЕ всех элементов, чтобы точки были видны поверх
         if (selectedTool === 'arc') {
             const connectionPoints = findAllConnectionPoints(elements);
@@ -191,7 +364,7 @@ function CanvasEditor() {
         // Здесь не отрисовываем её, чтобы избежать ошибок при отсутствии события
 
         scope.view.draw();
-    }, [elements, selectedElements, grid, dimensionsVisible, paperProject, gridStepPixels, selectedTool]);
+    }, [elements, selectedElements, grid, dimensionsVisible, debugNumbersVisible, paperProject, gridStepPixels, selectedTool]);
 
     // Обработка событий мыши
     useEffect(() => {
@@ -483,6 +656,34 @@ function CanvasEditor() {
                     }
                     return false;
                 });
+            } else if (selectedTool === 'delete') {
+                // В режиме delete находим элемент под курсором для подсветки красным
+                hoveredElement = elements.find(el => {
+                    if (el.type === 'line') {
+                        return isPointOnLine(point, el.start, el.end, 10);
+                    }
+                    if (el.type === 'arc') {
+                        const dist = distance(point, el.center);
+                        return Math.abs(dist - el.radius) < 10;
+                    }
+                    if (el.type === 'fillet') {
+                        // Проверяем, находится ли точка на дуге fillet
+                        const distToArcCenter = distance(point, el.arc.center);
+                        const onArc = Math.abs(distToArcCenter - el.arc.radius) < 10;
+                        // Также проверяем линии, входящие в fillet
+                        const line1 = elements.find(l => l.id === el.line1Id);
+                        const line2 = elements.find(l => l.id === el.line2Id);
+                        const onLine1 = line1 && line1.type === 'line' ? isPointOnLine(point, line1.start, line1.end, 10) : false;
+                        const onLine2 = line2 && line2.type === 'line' ? isPointOnLine(point, line2.start, line2.end, 10) : false;
+                        return onLine1 || onLine2 || onArc;
+                    }
+                    return false;
+                });
+                
+                // Меняем курсор на "not-allowed" (терка) если элемент найден
+                if (canvasRef.current) {
+                    canvasRef.current.style.cursor = hoveredElement ? 'not-allowed' : 'default';
+                }
             }
             
             setHoveredPoint(hoveredPointInfo);
@@ -492,7 +693,7 @@ function CanvasEditor() {
             
             // Отрисовываем сетку
             if (grid.visible) {
-                drawGrid(scope, gridStepPixels, grid.showMajorLines);
+                drawGrid(scope, gridStepPixels, false);
             }
             
             // Находим все fillet для проверки выделения линий
@@ -512,19 +713,20 @@ function CanvasEditor() {
             elements.forEach((element) => {
                 const isSelected = selectedElements.some(sel => sel.id === element.id);
                 const isHovered = hoveredElement && hoveredElement.id === element.id;
+                const isDeleteHovered = selectedTool === 'delete' && isHovered;
                 
                 if (element.type === 'line') {
                     // Если линия входит в выбранный fillet, выделяем её
                     const shouldHighlight = lineIdsInSelectedFillets.has(element.id);
-                    drawLine(scope, element, isSelected || shouldHighlight, isHovered, hoveredPointInfo, pointNumberMap);
+                    drawLine(scope, element, isSelected || shouldHighlight, isHovered && selectedTool !== 'delete', hoveredPointInfo, pointNumberMap, isDeleteHovered);
                 } else if (element.type === 'arc') {
-                    drawArc(scope, element, isSelected, isHovered);
+                    drawArc(scope, element, isSelected, isHovered && selectedTool !== 'delete', isDeleteHovered);
                 } else if (element.type === 'fillet') {
-                    drawFillet(scope, element, isSelected || (hoveredElement && hoveredElement.id === element.id), elements, pointNumberMap);
+                    drawFillet(scope, element, isSelected || (hoveredElement && hoveredElement.id === element.id && selectedTool !== 'delete'), elements, pointNumberMap, isDeleteHovered);
                 }
             });
             
-            // В режиме "Радиус" отображаем все точки соединений между линиями
+            // В режиме "Скругление" отображаем все точки соединений между линиями
             if (selectedTool === 'arc') {
                 const connectionPoints = findAllConnectionPoints(elements);
                 connectionPoints.forEach((cp, index) => {
@@ -704,7 +906,7 @@ function CanvasEditor() {
                         const updatedState = useEditorStore.getState();
                         scope.project.clear();
                         if (updatedState.grid.visible) {
-                            drawGrid(scope, gridStepPixels, updatedState.grid.showMajorLines);
+                            drawGrid(scope, gridStepPixels, false);
                         }
                         
                         // Находим fillet для выделения линий
@@ -749,7 +951,7 @@ function CanvasEditor() {
         return () => {
             tool.remove();
         };
-    }, [selectedTool, currentLineStart, isDrawing, elements, selectedElements, gridStepPixels, paperProject, grid, dimensionsVisible, orthogonalSnap, addElement, selectElement, deleteElement, deleteSelectedElements, setIsDrawing, setCurrentLineStart, draggingPoint, updateElement, hoveredPoint]);
+    }, [selectedTool, currentLineStart, isDrawing, elements, selectedElements, gridStepPixels, paperProject, grid, dimensionsVisible, debugNumbersVisible, orthogonalSnap, addElement, selectElement, deleteElement, deleteSelectedElements, setIsDrawing, setCurrentLineStart, draggingPoint, updateElement, hoveredPoint]);
 
     // Обработка клавиши Escape для отмены рисования
     useEffect(() => {
@@ -957,12 +1159,15 @@ function CanvasEditor() {
         return pointNumberMap;
     };
 
-    const drawLine = (scope, element, isSelected, isHovered = false, hoveredPointInfo = null, pointNumberMap = null) => {
-        // Приоритет: selected > hovered > обычный
+    const drawLine = (scope, element, isSelected, isHovered = false, hoveredPointInfo = null, pointNumberMap = null, isDeleteHovered = false) => {
+        // Приоритет: delete hovered (red) > selected > hovered > обычный
         let strokeColor = '#000';
         let strokeWidth = 2;
         
-        if (isSelected) {
+        if (isDeleteHovered) {
+            strokeColor = '#ff0000';
+            strokeWidth = 3;
+        } else if (isSelected) {
             strokeColor = '#0073aa';
             strokeWidth = 3;
         } else if (isHovered) {
@@ -1014,8 +1219,8 @@ function CanvasEditor() {
             endPoint.data = { elementId: element.id, pointType: 'end', type: 'linePoint' };
         }
 
-        // Отображаем номера концов линий (всегда, не только для выбранных)
-        if (pointNumberMap) {
+        // Отображаем номера концов линий (только если включена отладка)
+        if (pointNumberMap && debugNumbersVisible) {
             const startKey = `${element.id}:start`;
             const endKey = `${element.id}:end`;
             const startNumber = pointNumberMap.get(startKey);
@@ -1048,7 +1253,7 @@ function CanvasEditor() {
         }
     };
 
-    const drawArc = (scope, element, isSelected, isHovered = false) => {
+    const drawArc = (scope, element, isSelected, isHovered = false, isDeleteHovered = false) => {
         const center = new paper.Point(element.center.x, element.center.y);
         const radius = element.radius;
         const startAngle = element.startAngle || 0;
@@ -1083,8 +1288,11 @@ function CanvasEditor() {
             to: endPoint,
         });
 
-        // Приоритет: selected > hovered > обычный
-        if (isSelected) {
+        // Приоритет: delete hovered (red) > selected > hovered > обычный
+        if (isDeleteHovered) {
+            path.strokeColor = '#ff0000';
+            path.strokeWidth = 3;
+        } else if (isSelected) {
             path.strokeColor = '#0073aa';
             path.strokeWidth = 3;
         } else if (isHovered) {
@@ -1098,11 +1306,12 @@ function CanvasEditor() {
         path.data = { elementId: element.id, type: 'arc' };
     };
 
-    const drawFillet = (scope, element, isSelected = false, allElements = elements, pointNumberMap = null) => {
+    const drawFillet = (scope, element, isSelected = false, allElements = elements, pointNumberMap = null, isDeleteHovered = false) => {
         if (element.type !== 'fillet') return;
         
-        const strokeColor = isSelected ? '#0073aa' : '#000';
-        const strokeWidth = isSelected ? 3 : 2;
+        // Приоритет: delete hovered (red) > selected > обычный
+        const strokeColor = isDeleteHovered ? '#ff0000' : (isSelected ? '#0073aa' : '#000');
+        const strokeWidth = (isDeleteHovered || isSelected) ? 3 : 2;
         
         // Отрисовываем только дугу, линии отрисовываются отдельно как обычные элементы
         const arc = element.arc;
@@ -1199,8 +1408,8 @@ function CanvasEditor() {
         arcPath.strokeWidth = strokeWidth;
         arcPath.data = { elementId: element.id, type: 'fillet-arc' };
         
-        // Отображаем номера точек арки и их соответствие с концами линий
-        if (pointNumberMap && line1 && line2) {
+        // Отображаем номера точек арки и их соответствие с концами линий (только если включена отладка)
+        if (pointNumberMap && line1 && line2 && debugNumbersVisible) {
             // Определяем, к каким концам линий привязаны точки арки
             const distStartToLine1End = startPoint.getDistance(new paper.Point(line1.end.x, line1.end.y));
             const distStartToLine1Start = startPoint.getDistance(new paper.Point(line1.start.x, line1.start.y));
@@ -1245,7 +1454,7 @@ function CanvasEditor() {
         fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:1244',message:'before drawFilletDimensionCallout',data:{dimensionsVisible,hasArcCenter:!!arc.center,arcCenter:arc.center,arcRadius:arc.radius},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'D'})}).catch(()=>{});
         // #endregion
         if (dimensionsVisible && arc.center) {
-            drawFilletDimensionCallout(scope, element, isSelected, arc.center, arc.radius);
+            drawFilletDimensionCallout(scope, element, isSelected, arc.center, arc.radius, pointNumberMap, allElements);
         }
     };
 
@@ -1318,11 +1527,35 @@ function CanvasEditor() {
         });
     };
 
-    const drawFilletDimensionCallout = (scope, element, isSelected, arcCenter, arcRadius) => {
+    const drawFilletDimensionCallout = (scope, element, isSelected, arcCenter, arcRadius, pointNumberMap = null, allElements = []) => {
         if (element.type !== 'fillet') return;
 
+        // Определяем номера точек для анализа углов 6-7 и 14-15
+        let line1PointNumber = null;
+        let line2PointNumber = null;
+        if (pointNumberMap && element.line1Id && element.line2Id) {
+            const line1 = allElements.find(el => el.id === element.line1Id && el.type === 'line');
+            const line2 = allElements.find(el => el.id === element.line2Id && el.type === 'line');
+            
+            if (line1 && line2 && element.arcStartPoint && element.arcEndPoint) {
+                // Определяем, к каким концам линий привязаны точки арки
+                const distStartToLine1End = distance(element.arcStartPoint, line1.end);
+                const distStartToLine1Start = distance(element.arcStartPoint, line1.start);
+                const distEndToLine2End = distance(element.arcEndPoint, line2.end);
+                const distEndToLine2Start = distance(element.arcEndPoint, line2.start);
+                
+                const line1PointType = distStartToLine1End < distStartToLine1Start ? 'end' : 'start';
+                const line1Key = `${line1.id}:${line1PointType}`;
+                line1PointNumber = pointNumberMap.get(line1Key);
+                
+                const line2PointType = distEndToLine2End < distEndToLine2Start ? 'end' : 'start';
+                const line2Key = `${line2.id}:${line2PointType}`;
+                line2PointNumber = pointNumberMap.get(line2Key);
+            }
+        }
+
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:1321',message:'drawFilletDimensionCallout called',data:{arcCenter,arcRadius,arcCenterType:typeof arcCenter,arcCenterIsObject:arcCenter && typeof arcCenter === 'object'},timestamp:Date.now(),sessionId:'debug-session',runId:'check-data',hypothesisId:'D'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:1357',message:'drawFilletDimensionCallout called',data:{arcCenter,arcRadius,line1PointNumber,line2PointNumber,isAngle6_7:(line1PointNumber===6&&line2PointNumber===7)||(line1PointNumber===7&&line2PointNumber===6),isAngle14_15:(line1PointNumber===14&&line2PointNumber===15)||(line1PointNumber===15&&line2PointNumber===14)},timestamp:Date.now(),sessionId:'debug-session',runId:'analyze-angles',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
 
         const leaderLength = 15;
@@ -1412,8 +1645,21 @@ function CanvasEditor() {
         const horizontalEndX = diagonalEndX + horizontalLength;
         const horizontalEndY = diagonalEndY;
 
-        // Позиция текста - над горизонтальной линией
-        const textY = horizontalStartY - 3;
+        // Определяем, должен ли текст быть над линией на основе направления outsideDir
+        // outsideDir - это направление "снаружи" угла, вычисленное из геометрии угла
+        // Если outsideDir направлен вверх (y < 0), текст над линией
+        // Если outsideDir направлен вниз (y > 0), текст под линией
+        const textAboveLine = outsideDir.y < 0;
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:1475',message:'text placement analysis',data:{line1PointNumber,line2PointNumber,textAboveLine,horizontalStartY,centerY,outsideDir,outsideDirY:outsideDir.y},timestamp:Date.now(),sessionId:'debug-session',runId:'analyze-angles',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
+        // Позиция текста - над или под горизонтальной линией
+        // Для текста над линией используем меньший отступ (-3 вместо -14), чтобы текст не был слишком высоко
+        const textY = textAboveLine 
+            ? horizontalStartY - 3  // Отступ вверх от линии (3 пикселя для размещения текста над линией)
+            : horizontalStartY + 14; // Отступ вниз от линии (14 пикселей для размещения текста под линией)
 
         const radiusText = 'R ' + formatLengthMM(arcRadius);
         const strokeColor = isSelected ? '#0073aa' : '#999';

@@ -50,9 +50,9 @@ function ArcProperties({ element }) {
 
     return (
         <div className="arc-properties">
-            <h4>Arc Properties</h4>
+            <h4>Свойства дуги</h4>
             <div className="property-item">
-                <label htmlFor="arc-radius">Radius (mm):</label>
+                <label htmlFor="arc-radius">Радиус (мм):</label>
                 <input
                     id="arc-radius"
                     type="number"
@@ -64,7 +64,7 @@ function ArcProperties({ element }) {
                 />
             </div>
             <div className="property-item">
-                <label htmlFor="arc-angle">Angle (°):</label>
+                <label htmlFor="arc-angle">Угол (°):</label>
                 <input
                     id="arc-angle"
                     type="number"
@@ -77,7 +77,7 @@ function ArcProperties({ element }) {
                 />
             </div>
             <div className="property-item">
-                <label>Length:</label>
+                <label>Длина:</label>
                 <span className="property-value">{arcLengthText}</span>
             </div>
         </div>

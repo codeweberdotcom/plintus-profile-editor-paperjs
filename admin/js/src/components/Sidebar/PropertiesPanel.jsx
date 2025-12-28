@@ -7,11 +7,21 @@ import { distance, formatLengthMM } from '../../utils/geometry';
 import './PropertiesPanel.css';
 
 function PropertiesPanel({ elements }) {
-    const { deleteSelectedElements } = useEditorStore();
+    const { deleteSelectedElements, debugNumbersVisible, toggleDebugNumbersVisible } = useEditorStore();
     const allElements = useEditorStore((state) => state.elements);
 
     const handleDelete = () => {
         deleteSelectedElements();
+    };
+
+    // Функция для перевода типа элемента на русский
+    const getElementTypeLabel = (type) => {
+        const typeLabels = {
+            'line': 'Линия',
+            'arc': 'Дуга',
+            'fillet': 'Скругление'
+        };
+        return typeLabels[type] || type;
     };
 
     const lineElements = elements.filter(el => el.type === 'line');
@@ -59,7 +69,7 @@ function PropertiesPanel({ elements }) {
             <div className="panel-header">
                 {elements.length > 0 && (
                     <button onClick={handleDelete} className="delete-button">
-                        Delete
+                        Удалить
                     </button>
                 )}
             </div>
@@ -67,13 +77,13 @@ function PropertiesPanel({ elements }) {
             <div className="panel-content">
                 {/* Блок со сводной информацией */}
                 <div className="properties-summary">
-                    <h4>Summary</h4>
+                    <h4>Сводка</h4>
                     <div className="summary-item">
-                        <span className="summary-label">Total Lines Length:</span>
+                        <span className="summary-label">Общая длина линий:</span>
                         <span className="summary-value">{totalLinesLengthText}</span>
                     </div>
                     <div className="summary-item">
-                        <span className="summary-label">Fillets Count:</span>
+                        <span className="summary-label">Количество скруглений:</span>
                         <span className="summary-value">{filletsCount}</span>
                     </div>
                 </div>
@@ -81,13 +91,13 @@ function PropertiesPanel({ elements }) {
                 <div className="properties-section">
                     <h3 className="properties-section-title">
                         {elements.length === 0 
-                            ? 'Properties' 
-                            : `Properties (${elements.length} selected)`}
+                            ? 'Свойства' 
+                            : `Свойства (${elements.length} выбрано)`}
                     </h3>
                 </div>
 
                 <div className="properties-elements-list">
-                    <h4>Selected Elements:</h4>
+                    <h4>Выбранные элементы:</h4>
                         {elements.length > 0 ? (
                             <ul className="properties-elements-list-items">
                                 {elements.map((element, index) => {
@@ -95,7 +105,7 @@ function PropertiesPanel({ elements }) {
                                     const lengthText = formatLengthMM(elementLength);
                                     return (
                                         <li key={element.id} className="properties-element-item">
-                                            <span className="element-type-badge">{element.type}</span>
+                                            <span className="element-type-badge">{getElementTypeLabel(element.type)}</span>
                                             <span className="element-id">#{index + 1}</span>
                                             <span className="element-length">{lengthText}</span>
                                         </li>
@@ -103,7 +113,7 @@ function PropertiesPanel({ elements }) {
                                 })}
                             </ul>
                         ) : (
-                            <p className="properties-empty-state">No elements selected</p>
+                            <p className="properties-empty-state">Элементы не выбраны</p>
                         )}
                     </div>
 
@@ -118,6 +128,32 @@ function PropertiesPanel({ elements }) {
                 {filletElements.length === 1 && (
                     <FilletProperties element={filletElements[0]} />
                 )}
+
+                {/* Кнопка включения/выключения отладочных номеров */}
+                <div className="debug-controls" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #ddd' }}>
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleDebugNumbersVisible();
+                        }}
+                        className={debugNumbersVisible ? 'active' : ''}
+                        style={{
+                            width: '100%',
+                            padding: '10px',
+                            backgroundColor: debugNumbersVisible ? '#0073aa' : '#f0f0f0',
+                            color: debugNumbersVisible ? '#fff' : '#333',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                        }}
+                        title="Показать/скрыть номера точек для отладки"
+                    >
+                        {debugNumbersVisible ? '✓ ' : ''}Отладочные номера
+                    </button>
+                </div>
             </div>
         </div>
     );

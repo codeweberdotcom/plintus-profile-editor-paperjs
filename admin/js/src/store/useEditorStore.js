@@ -13,6 +13,7 @@ export const useEditorStore = create((set, get) => ({
         showMajorLines: false,
     },
     dimensionsVisible: true,
+    debugNumbersVisible: false, // Видимость номеров точек для отладки
     orthogonalSnap: true, // Ортогональная привязка включена по умолчанию
     viewbox: {
         x: 0,
@@ -22,6 +23,7 @@ export const useEditorStore = create((set, get) => ({
     },
     isDrawing: false,
     currentLineStart: null,
+    zoom: 2, // Начальный масштаб (2x соответствует текущему масштабу)
     
     // Actions
     setSelectedTool: (tool) => set({ selectedTool: tool, selectedElements: [] }),
@@ -33,14 +35,148 @@ export const useEditorStore = create((set, get) => ({
             el.id === id ? { ...el, ...updates } : el
         ),
     })),
-    deleteElement: (id) => set((state) => ({
-        elements: state.elements.filter((el) => el.id !== id),
-        selectedElements: state.selectedElements.filter((el) => el.id !== id),
-    })),
+    deleteElement: (id) => set((state) => {
+        // Находим элемент, который удаляется
+        const elementToDelete = state.elements.find(el => el.id === id);
+        
+        // Если это fillet, восстанавливаем связанные линии
+        if (elementToDelete && elementToDelete.type === 'fillet' && elementToDelete.connection) {
+            const { line1Id, line2Id, connection, line1EndTruncated, line2EndTruncated } = elementToDelete;
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useEditorStore.js:36',message:'deleteElement fillet detected',data:{filletId:id,line1Id,line2Id,connection,line1EndTruncated,line2EndTruncated},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-fillet',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            
+            // Находим линии для определения, какой конец был обрезан (fallback для старых fillet)
+            const line1 = state.elements.find(el => el.id === line1Id && el.type === 'line');
+            const line2 = state.elements.find(el => el.id === line2Id && el.type === 'line');
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useEditorStore.js:50',message:'deleteElement lines found',data:{line1Found:!!line1,line2Found:!!line2,line1:line1?{start:line1.start,end:line1.end}:null,line2:line2?{start:line2.start,end:line2.end}:null},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-fillet',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            
+            // Определяем, какой конец обрезан, если информация не сохранена
+            let shouldRestoreLine1End = line1EndTruncated;
+            let shouldRestoreLine2End = line2EndTruncated;
+            
+            if (shouldRestoreLine1End === undefined && line1) {
+                // Fallback: определяем по расстоянию до connection
+                const distToLine1Start = distance(connection, line1.start);
+                const distToLine1End = distance(connection, line1.end);
+                shouldRestoreLine1End = distToLine1End < distToLine1Start;
+            }
+            
+            if (shouldRestoreLine2End === undefined && line2) {
+                // Fallback: определяем по расстоянию до connection
+                const distToLine2Start = distance(connection, line2.start);
+                const distToLine2End = distance(connection, line2.end);
+                shouldRestoreLine2End = distToLine2End < distToLine2Start;
+            }
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useEditorStore.js:70',message:'deleteElement restoration logic',data:{shouldRestoreLine1End,shouldRestoreLine2End,connection},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-fillet',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            
+            // Восстанавливаем линии до исходного состояния
+            const updatedElements = state.elements.map((el) => {
+                if (el.id === line1Id && el.type === 'line') {
+                    // Восстанавливаем line1
+                    const restored = shouldRestoreLine1End
+                        ? { ...el, end: connection }
+                        : { ...el, start: connection };
+                    
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useEditorStore.js:85',message:'deleteElement line1 restored',data:{line1Id,before:{start:el.start,end:el.end},after:{start:restored.start,end:restored.end},shouldRestoreLine1End},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-fillet',hypothesisId:'A'})}).catch(()=>{});
+                    // #endregion
+                    
+                    return restored;
+                } else if (el.id === line2Id && el.type === 'line') {
+                    // Восстанавливаем line2
+                    const restored = shouldRestoreLine2End
+                        ? { ...el, end: connection }
+                        : { ...el, start: connection };
+                    
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useEditorStore.js:95',message:'deleteElement line2 restored',data:{line2Id,before:{start:el.start,end:el.end},after:{start:restored.start,end:restored.end},shouldRestoreLine2End},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-fillet',hypothesisId:'A'})}).catch(()=>{});
+                    // #endregion
+                    
+                    return restored;
+                }
+                return el;
+            });
+            
+            // Удаляем fillet и обновляем линии
+            return {
+                elements: updatedElements.filter((el) => el.id !== id),
+                selectedElements: state.selectedElements.filter((el) => el.id !== id),
+            };
+        }
+        
+        // Обычное удаление
+        return {
+            elements: state.elements.filter((el) => el.id !== id),
+            selectedElements: state.selectedElements.filter((el) => el.id !== id),
+        };
+    }),
     deleteSelectedElements: () => set((state) => {
         const selectedIds = new Set(state.selectedElements.map(el => el.id));
+        
+        // Находим все fillet среди выбранных элементов
+        const filletsToDelete = state.selectedElements.filter(el => el.type === 'fillet');
+        
+        // Восстанавливаем линии для всех fillet
+        let updatedElements = [...state.elements];
+        
+        filletsToDelete.forEach(fillet => {
+            if (fillet.connection) {
+                const { line1Id, line2Id, connection, line1EndTruncated, line2EndTruncated } = fillet;
+                
+                // Находим линии для определения, какой конец был обрезан (fallback для старых fillet)
+                const line1 = updatedElements.find(el => el.id === line1Id && el.type === 'line');
+                const line2 = updatedElements.find(el => el.id === line2Id && el.type === 'line');
+                
+                // Определяем, какой конец обрезан, если информация не сохранена
+                let shouldRestoreLine1End = line1EndTruncated;
+                let shouldRestoreLine2End = line2EndTruncated;
+                
+                if (shouldRestoreLine1End === undefined && line1) {
+                    // Fallback: определяем по расстоянию до connection
+                    const distToLine1Start = distance(connection, line1.start);
+                    const distToLine1End = distance(connection, line1.end);
+                    shouldRestoreLine1End = distToLine1End < distToLine1Start;
+                }
+                
+                if (shouldRestoreLine2End === undefined && line2) {
+                    // Fallback: определяем по расстоянию до connection
+                    const distToLine2Start = distance(connection, line2.start);
+                    const distToLine2End = distance(connection, line2.end);
+                    shouldRestoreLine2End = distToLine2End < distToLine2Start;
+                }
+                
+                updatedElements = updatedElements.map((el) => {
+                    if (el.id === line1Id && el.type === 'line') {
+                        // Восстанавливаем line1
+                        if (shouldRestoreLine1End) {
+                            return { ...el, end: connection };
+                        } else {
+                            return { ...el, start: connection };
+                        }
+                    } else if (el.id === line2Id && el.type === 'line') {
+                        // Восстанавливаем line2
+                        if (shouldRestoreLine2End) {
+                            return { ...el, end: connection };
+                        } else {
+                            return { ...el, start: connection };
+                        }
+                    }
+                    return el;
+                });
+            }
+        });
+        
+        // Удаляем выбранные элементы
         return {
-            elements: state.elements.filter((el) => !selectedIds.has(el.id)),
+            elements: updatedElements.filter((el) => !selectedIds.has(el.id)),
             selectedElements: [],
         };
     }),
@@ -71,6 +207,9 @@ export const useEditorStore = create((set, get) => ({
     setIsDrawing: (isDrawing) => set({ isDrawing }),
     toggleDimensionsVisible: () => set((state) => ({
         dimensionsVisible: !state.dimensionsVisible,
+    })),
+    toggleDebugNumbersVisible: () => set((state) => ({
+        debugNumbersVisible: !state.debugNumbersVisible,
     })),
     toggleMajorLines: () => set((state) => ({
         grid: { ...state.grid, showMajorLines: !state.grid.showMajorLines },
@@ -259,6 +398,35 @@ export const useEditorStore = create((set, get) => ({
 
             return { elements: updatedElements };
         });
+    },
+    // Вычисляет минимальный масштаб на основе размера сетки
+    // Минимальный масштаб должен быть таким, чтобы сетка была видна (минимум 5 пикселей между линиями)
+    getMinZoom: () => {
+        const state = get();
+        const gridStepPixels = mmToPixels(state.grid.stepMM);
+        const minGridSizePixels = 5; // Минимальный размер сетки в пикселях для видимости
+        const minZoom = minGridSizePixels / gridStepPixels;
+        return Math.max(0.1, minZoom); // Минимум 0.1x для безопасности
+    },
+    zoomIn: () => set((state) => {
+        const newZoom = Math.min(state.zoom * 1.2, 10); // Максимальный масштаб 10x
+        return { zoom: newZoom };
+    }),
+    zoomOut: () => {
+        const state = get();
+        const gridStepPixels = mmToPixels(state.grid.stepMM);
+        const minGridSizePixels = 5; // Минимальный размер сетки в пикселях для видимости
+        const minZoom = Math.max(0.1, minGridSizePixels / gridStepPixels);
+        const newZoom = Math.max(state.zoom / 1.2, minZoom); // Минимальный масштаб на основе размера сетки
+        return set({ zoom: newZoom });
+    },
+    resetZoom: () => set({ zoom: 2 }), // Сброс к начальному масштабу 2x
+    setZoom: (zoom) => {
+        const state = get();
+        const gridStepPixels = mmToPixels(state.grid.stepMM);
+        const minGridSizePixels = 5; // Минимальный размер сетки в пикселях для видимости
+        const minZoom = Math.max(0.1, minGridSizePixels / gridStepPixels);
+        return set({ zoom: Math.max(minZoom, Math.min(10, zoom)) }); // Установка масштаба с ограничениями
     },
 }));
 

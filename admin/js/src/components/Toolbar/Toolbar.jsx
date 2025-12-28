@@ -4,12 +4,12 @@ import { useEditorStore } from '../../store/useEditorStore';
 import './Toolbar.css';
 
 function Toolbar() {
-    const { selectedTool, setSelectedTool, grid, toggleMajorLines, dimensionsVisible, toggleDimensionsVisible, orthogonalSnap, toggleOrthogonalSnap } = useEditorStore();
+    const { selectedTool, setSelectedTool, dimensionsVisible, toggleDimensionsVisible, zoomIn, zoomOut, resetZoom } = useEditorStore();
 
     const tools = [
         { id: 'line', label: 'Рисование', icon: 'uil-edit-alt' },
         { id: 'select', label: 'Редактировать', icon: 'uil-vector-square' },
-        { id: 'arc', label: 'Радиус', icon: 'uil-circle' },
+        { id: 'arc', label: 'Скругление', icon: 'uil-circle' },
         { id: 'delete', label: 'Удаление', icon: 'uil-trash-alt' },
     ];
 
@@ -27,29 +27,39 @@ function Toolbar() {
             </div>
 
             <div className="plintus-toolbar-section plintus-toolbar-section-right">
+                {/* Кнопки управления масштабом */}
                 <button
                     type="button"
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        toggleOrthogonalSnap();
+                        resetZoom();
                     }}
-                    className={orthogonalSnap ? 'active' : ''}
-                    title="Toggle Orthogonal Snap"
+                    title="Сброс масштаба"
                 >
-                    <i className="fs-28 uil uil-vector-square-alt"></i>
+                    <i className="fs-28 uil uil-expand-arrows-alt"></i>
                 </button>
                 <button
                     type="button"
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        toggleMajorLines();
+                        zoomOut();
                     }}
-                    className={grid.showMajorLines ? 'active' : ''}
-                    title="Show/Hide Major Grid Lines (10mm)"
+                    title="Уменьшить"
                 >
-                    <i className="fs-28 uil uil-grids"></i>
+                    <i className="fs-28 uil uil-minus-circle"></i>
+                </button>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        zoomIn();
+                    }}
+                    title="Приблизить"
+                >
+                    <i className="fs-28 uil uil-plus-circle"></i>
                 </button>
                 <button
                     type="button"
