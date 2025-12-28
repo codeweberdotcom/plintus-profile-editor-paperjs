@@ -5,7 +5,7 @@ import { pixelsToMM } from '../../utils/geometry';
 function FilletProperties({ element }) {
     const { updateFilletRadius } = useEditorStore();
     const [radiusMM, setRadiusMM] = useState(
-        element.radius ? Math.round(pixelsToMM(element.radius)) : 5
+        element.radius ? Math.round(pixelsToMM(element.radius)) : 3
     );
 
     // Синхронизируем значение с элементом при его изменении

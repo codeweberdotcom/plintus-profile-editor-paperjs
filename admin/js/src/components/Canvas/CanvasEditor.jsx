@@ -176,7 +176,7 @@ function CanvasEditor() {
                 // Создаем круг для точки соединения
                 const circle = new paper.Path.Circle({
                     center: [cp.point.x, cp.point.y],
-                    radius: 8,
+                    radius: 1.6,
                     fillColor: '#ff6600',
                     strokeColor: '#fff',
                     strokeWidth: 2,
@@ -530,7 +530,7 @@ function CanvasEditor() {
                 connectionPoints.forEach((cp, index) => {
                     const circle = new paper.Path.Circle({
                         center: [cp.point.x, cp.point.y],
-                        radius: 8,
+                        radius: 2.6,
                         fillColor: '#ff6600',
                         strokeColor: '#fff',
                         strokeWidth: 2,
@@ -1241,6 +1241,9 @@ function CanvasEditor() {
         }
         
         // Отрисовываем сноску с радиусом, если включено отображение размеров
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:1244',message:'before drawFilletDimensionCallout',data:{dimensionsVisible,hasArcCenter:!!arc.center,arcCenter:arc.center,arcRadius:arc.radius},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         if (dimensionsVisible && arc.center) {
             drawFilletDimensionCallout(scope, element, isSelected, arc.center, arc.radius);
         }
@@ -1318,32 +1321,105 @@ function CanvasEditor() {
     const drawFilletDimensionCallout = (scope, element, isSelected, arcCenter, arcRadius) => {
         if (element.type !== 'fillet') return;
 
-        const leaderLength = 20;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:1321',message:'drawFilletDimensionCallout called',data:{arcCenter,arcRadius,arcCenterType:typeof arcCenter,arcCenterIsObject:arcCenter && typeof arcCenter === 'object'},timestamp:Date.now(),sessionId:'debug-session',runId:'check-data',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+
+        const leaderLength = 15;
         const horizontalLength = 40;
-        const angle = 45;
-        const angleRad = (angle * Math.PI) / 180;
 
-        // Точка на дуге для начала выноски (используем средний угол дуги для размещения сноски)
-        const arc = element.arc;
-        const midAngleRad = ((arc.startAngle + arc.angle / 2) * Math.PI) / 180;
-        const leaderStartX = arcCenter.x + Math.cos(midAngleRad) * arcRadius;
-        const leaderStartY = arcCenter.y + Math.sin(midAngleRad) * arcRadius;
+        // Центр радиуса - это начальная точка отрисовки сноски
+        const centerX = arcCenter.x;
+        const centerY = arcCenter.y;
+        
+        // Вычисляем середину видимого отрезка радиуса (дуги)
+        // Используем сохраненные точки начала и конца дуги для точного вычисления середины
+        let arcPointX, arcPointY;
+        if (element.arcStartPoint && element.arcEndPoint) {
+            // Вычисляем среднюю точку между началом и концом дуги
+            arcPointX = (element.arcStartPoint.x + element.arcEndPoint.x) / 2;
+            arcPointY = (element.arcStartPoint.y + element.arcEndPoint.y) / 2;
+            
+            // Проектируем эту точку на дугу (на расстояние arcRadius от центра)
+            const dx = arcPointX - centerX;
+            const dy = arcPointY - centerY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 0.0001) {
+                // Нормализуем и масштабируем до радиуса
+                arcPointX = centerX + (dx / dist) * arcRadius;
+                arcPointY = centerY + (dy / dist) * arcRadius;
+            }
+        } else {
+            // Fallback: используем средний угол дуги
+            const arc = element.arc;
+            const startAngleRad = (arc.startAngle * Math.PI) / 180;
+            const angleRad = (arc.angle * Math.PI) / 180;
+            const midAngleRad = startAngleRad + angleRad / 2;
+            arcPointX = centerX + Math.cos(midAngleRad) * arcRadius;
+            arcPointY = centerY + Math.sin(midAngleRad) * arcRadius;
+        }
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:1345',message:'arc midpoint calculation',data:{arcCenter:{x:centerX,y:centerY},arcRadius,arcStartPoint:element.arcStartPoint,arcEndPoint:element.arcEndPoint,arcPoint:{x:arcPointX,y:arcPointY}},timestamp:Date.now(),sessionId:'debug-session',runId:'check-arc-midpoint',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+        
+        // Первая линия: от центра радиуса до точки на дуге (проходит через середину видимого элемента)
+        const leaderStartX = centerX;
+        const leaderStartY = centerY;
+        const leaderEndX = arcPointX;
+        const leaderEndY = arcPointY;
 
-        const leaderEndX = leaderStartX + Math.cos(angleRad) * leaderLength;
-        const leaderEndY = leaderStartY - Math.sin(angleRad) * leaderLength;
+        // Определяем направление "снаружи" угла
+        // Используем сохраненные направления линий для вычисления биссектрисы
+        let outsideDir;
+        if (element.line1Direction && element.line2Direction) {
+            // Вычисляем биссектрису (направлена внутрь угла)
+            const bisectorUnnormalized = {
+                x: element.line1Direction.x + element.line2Direction.x,
+                y: element.line1Direction.y + element.line2Direction.y
+            };
+            const bisectorLength = Math.sqrt(bisectorUnnormalized.x * bisectorUnnormalized.x + bisectorUnnormalized.y * bisectorUnnormalized.y);
+            const bisectorDir = bisectorLength > 0.0001
+                ? { x: bisectorUnnormalized.x / bisectorLength, y: bisectorUnnormalized.y / bisectorLength }
+                : { x: -element.line1Direction.y, y: element.line1Direction.x };
+            
+            // Направление "снаружи" - противоположно биссектрисе
+            outsideDir = { x: -bisectorDir.x, y: -bisectorDir.y };
+        } else {
+            // Fallback: используем направление от центра к точке на дуге, повернутое на 90 градусов
+            const dirToArc = {
+                x: arcPointX - centerX,
+                y: arcPointY - centerY
+            };
+            const dirLength = Math.sqrt(dirToArc.x * dirToArc.x + dirToArc.y * dirToArc.y);
+            if (dirLength > 0.0001) {
+                const normalizedDir = { x: dirToArc.x / dirLength, y: dirToArc.y / dirLength };
+                // Поворачиваем на 90 градусов против часовой стрелки для направления снаружи
+                outsideDir = { x: -normalizedDir.y, y: normalizedDir.x };
+            } else {
+                // Последний fallback: фиксированное направление
+                outsideDir = { x: Math.cos(45 * Math.PI / 180), y: -Math.sin(45 * Math.PI / 180) };
+            }
+        }
 
-        const horizontalStartX = leaderEndX;
-        const horizontalStartY = leaderEndY;
-        const horizontalEndX = leaderEndX + horizontalLength;
-        const horizontalEndY = leaderEndY;
+        // Косая линия: от точки на дуге в направлении "снаружи" угла
+        const diagonalEndX = arcPointX + outsideDir.x * leaderLength;
+        const diagonalEndY = arcPointY + outsideDir.y * leaderLength;
 
+        // Горизонтальная линия: от конца косой линии
+        const horizontalStartX = diagonalEndX;
+        const horizontalStartY = diagonalEndY;
+        const horizontalEndX = diagonalEndX + horizontalLength;
+        const horizontalEndY = diagonalEndY;
+
+        // Позиция текста - над горизонтальной линией
         const textY = horizontalStartY - 3;
 
         const radiusText = 'R ' + formatLengthMM(arcRadius);
         const strokeColor = isSelected ? '#0073aa' : '#999';
         const lineWidth = 0.5;
 
-        // Косая линия (выноска от дуги)
+        // Первая линия: от центра радиуса до точки на дуге
         const leaderLine = new paper.Path.Line({
             from: [leaderStartX, leaderStartY],
             to: [leaderEndX, leaderEndY],
@@ -1351,7 +1427,15 @@ function CanvasEditor() {
             strokeWidth: lineWidth,
         });
 
-        // Горизонтальная линия
+        // Косая линия: от точки на дуге под углом 45 градусов вправо-вверх
+        const diagonalLine = new paper.Path.Line({
+            from: [arcPointX, arcPointY],
+            to: [diagonalEndX, diagonalEndY],
+            strokeColor: strokeColor,
+            strokeWidth: lineWidth,
+        });
+
+        // Горизонтальная линия: от конца косой линии
         const horizontalLine = new paper.Path.Line({
             from: [horizontalStartX, horizontalStartY],
             to: [horizontalEndX, horizontalEndY],
@@ -1369,12 +1453,12 @@ function CanvasEditor() {
         const textWidth = tempText.bounds.width;
         tempText.remove();
 
-        // Выравниваем текст по правому краю сноски
-        const textX = horizontalEndX - textWidth;
+        // Выравниваем текст по правому краю горизонтальной линии
+        const finalTextX = horizontalEndX - textWidth;
 
-        // Текст - выровнен по правому краю сноски
+        // Текст - выровнен по правому краю горизонтальной линии
         const text = new paper.PointText({
-            point: [textX, textY],
+            point: [finalTextX, textY],
             content: radiusText,
             fillColor: strokeColor,
             fontSize: 11,
@@ -1410,7 +1494,7 @@ function CanvasEditor() {
         fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:976',message:'connection found',data:{connection:connection,line1End:connection.line1End,line2End:connection.line2End},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
         
-        const arcRadius = mmToPixels(5); // 5 мм по умолчанию
+        const arcRadius = mmToPixels(3); // 3 мм по умолчанию
         
         // Определяем, какой конец каждой линии является точкой соединения
         const distToLine1Start = distance(connection, line1.start);
@@ -1499,6 +1583,8 @@ function CanvasEditor() {
         const perp1Dot = perp1Dir.x * bisectorDir.x + perp1Dir.y * bisectorDir.y;
         const perp2Dot = perp2Dir.x * bisectorDir.x + perp2Dir.y * bisectorDir.y;
         
+        // Перпендикуляры должны идти внутрь угла, поэтому если скалярное произведение положительное, перпендикуляр направлен внутрь - оставляем как есть
+        // Если отрицательное - направлен наружу, инвертируем
         const finalPerp1Dir = perp1Dot > 0 ? perp1Dir : { x: -perp1Dir.x, y: -perp1Dir.y };
         const finalPerp2Dir = perp2Dot > 0 ? perp2Dir : { x: -perp2Dir.x, y: -perp2Dir.y };
         
@@ -1526,7 +1612,8 @@ function CanvasEditor() {
         }
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:1230',message:'arc center calculation',data:{angle1,angle2,angleDiff,angleDiffRad,arcCenter,arcRadius,connection,dir1,dir2,perp1Dir,perp2Dir,finalPerp1Dir,finalPerp2Dir,arcStartPoint,arcEndPoint,distFromCenterToStart:distance(arcCenter,arcStartPoint),distFromCenterToEnd:distance(arcCenter,arcEndPoint)},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'A'})}).catch(()=>{});
+        const centerDist = angleDiffRad > 0.0001 ? arcRadius / Math.sin(angleDiffRad / 2) : arcRadius;
+        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:1560',message:'arc center calculation',data:{angle1,angle2,angleDiff,angleDiffRad,arcCenter,arcRadius,connection,dir1,dir2,bisectorDir,centerDist,arcStartPoint,arcEndPoint,distFromCenterToStart:distance(arcCenter,arcStartPoint),distFromCenterToEnd:distance(arcCenter,arcEndPoint)},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
         
         // Точки арки уже правильно вычислены от connection на линиях
