@@ -442,13 +442,19 @@ function CanvasEditor() {
             drawGrid(scope, gridStepPixels, false);
         }
 
-        // Находим все fillet для проверки выделения линий
+        // Находим все fillet и chamfer для проверки выделения линий
         const fillets = elements.filter(el => el.type === 'fillet');
+        const chamfers = elements.filter(el => el.type === 'chamfer');
         const lineIdsInSelectedFillets = new Set();
+        const lineIdsInSelectedChamfers = new Set();
         selectedElements.forEach(sel => {
             if (sel.type === 'fillet') {
                 if (sel.line1Id) lineIdsInSelectedFillets.add(sel.line1Id);
                 if (sel.line2Id) lineIdsInSelectedFillets.add(sel.line2Id);
+            }
+            if (sel.type === 'chamfer') {
+                if (sel.line1Id) lineIdsInSelectedChamfers.add(sel.line1Id);
+                if (sel.line2Id) lineIdsInSelectedChamfers.add(sel.line2Id);
             }
         });
         
@@ -460,8 +466,8 @@ function CanvasEditor() {
             const isSelected = selectedElements.some(sel => sel.id === element.id);
             
             if (element.type === 'line') {
-                // Если линия входит в выбранный fillet, выделяем её
-                const shouldHighlight = lineIdsInSelectedFillets.has(element.id);
+                // Если линия входит в выбранный fillet или chamfer, выделяем её
+                const shouldHighlight = lineIdsInSelectedFillets.has(element.id) || lineIdsInSelectedChamfers.has(element.id);
                 drawLine(scope, element, isSelected || shouldHighlight, false, null, pointNumberMap);
             } else if (element.type === 'arc') {
                 drawArc(scope, element, isSelected);
@@ -894,13 +900,19 @@ function CanvasEditor() {
                 drawGrid(scope, gridStepPixels, false);
             }
             
-            // Находим все fillet для проверки выделения линий
+            // Находим все fillet и chamfer для проверки выделения линий
             const fillets = elements.filter(el => el.type === 'fillet');
+            const chamfers = elements.filter(el => el.type === 'chamfer');
             const lineIdsInSelectedFillets = new Set();
+            const lineIdsInSelectedChamfers = new Set();
             selectedElements.forEach(sel => {
                 if (sel.type === 'fillet') {
                     if (sel.line1Id) lineIdsInSelectedFillets.add(sel.line1Id);
                     if (sel.line2Id) lineIdsInSelectedFillets.add(sel.line2Id);
+                }
+                if (sel.type === 'chamfer') {
+                    if (sel.line1Id) lineIdsInSelectedChamfers.add(sel.line1Id);
+                    if (sel.line2Id) lineIdsInSelectedChamfers.add(sel.line2Id);
                 }
             });
             
@@ -914,13 +926,15 @@ function CanvasEditor() {
                 const isDeleteHovered = selectedTool === 'delete' && isHovered;
                 
                 if (element.type === 'line') {
-                    // Если линия входит в выбранный fillet, выделяем её
-                    const shouldHighlight = lineIdsInSelectedFillets.has(element.id);
+                    // Если линия входит в выбранный fillet или chamfer, выделяем её
+                    const shouldHighlight = lineIdsInSelectedFillets.has(element.id) || lineIdsInSelectedChamfers.has(element.id);
                     drawLine(scope, element, isSelected || shouldHighlight, isHovered && selectedTool !== 'delete', hoveredPointInfo, pointNumberMap, isDeleteHovered);
                 } else if (element.type === 'arc') {
                     drawArc(scope, element, isSelected, isHovered && selectedTool !== 'delete', isDeleteHovered);
                 } else if (element.type === 'fillet') {
                     drawFillet(scope, element, isSelected || (hoveredElement && hoveredElement.id === element.id && selectedTool !== 'delete'), elements, pointNumberMap, isDeleteHovered);
+                } else if (element.type === 'chamfer') {
+                    drawChamfer(scope, element, isSelected || (hoveredElement && hoveredElement.id === element.id && selectedTool !== 'delete'), elements, pointNumberMap, isDeleteHovered);
                 }
             });
             
@@ -1107,13 +1121,19 @@ function CanvasEditor() {
                             drawGrid(scope, gridStepPixels, false);
                         }
                         
-                        // Находим fillet для выделения линий
+                        // Находим fillet и chamfer для выделения линий
                         const fillets = updatedState.elements.filter(e => e.type === 'fillet');
+                        const chamfers = updatedState.elements.filter(e => e.type === 'chamfer');
                         const lineIdsInSelectedFillets = new Set();
+                        const lineIdsInSelectedChamfers = new Set();
                         updatedState.selectedElements.forEach(sel => {
                             if (sel.type === 'fillet') {
                                 if (sel.line1Id) lineIdsInSelectedFillets.add(sel.line1Id);
                                 if (sel.line2Id) lineIdsInSelectedFillets.add(sel.line2Id);
+                            }
+                            if (sel.type === 'chamfer') {
+                                if (sel.line1Id) lineIdsInSelectedChamfers.add(sel.line1Id);
+                                if (sel.line2Id) lineIdsInSelectedChamfers.add(sel.line2Id);
                             }
                         });
                         
@@ -1122,7 +1142,7 @@ function CanvasEditor() {
                         updatedState.elements.forEach((el) => {
                             const isSelected = updatedState.selectedElements.some(sel => sel.id === el.id);
                             if (el.type === 'line') {
-                                const shouldHighlight = lineIdsInSelectedFillets.has(el.id);
+                                const shouldHighlight = lineIdsInSelectedFillets.has(el.id) || lineIdsInSelectedChamfers.has(el.id);
                                 drawLine(scope, el, isSelected || shouldHighlight, false, null, pointNumberMap);
                             } else if (el.type === 'arc') {
                                 drawArc(scope, el, isSelected, false);

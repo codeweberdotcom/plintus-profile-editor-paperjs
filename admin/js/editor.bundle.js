@@ -2947,15 +2947,23 @@ function CanvasEditor_CanvasEditor() {
       drawGrid(scope, gridStepPixels, false);
     }
 
-    // Находим все fillet для проверки выделения линий
+    // Находим все fillet и chamfer для проверки выделения линий
     var fillets = elements.filter(function (el) {
       return el.type === 'fillet';
     });
+    var chamfers = elements.filter(function (el) {
+      return el.type === 'chamfer';
+    });
     var lineIdsInSelectedFillets = new Set();
+    var lineIdsInSelectedChamfers = new Set();
     selectedElements.forEach(function (sel) {
       if (sel.type === 'fillet') {
         if (sel.line1Id) lineIdsInSelectedFillets.add(sel.line1Id);
         if (sel.line2Id) lineIdsInSelectedFillets.add(sel.line2Id);
+      }
+      if (sel.type === 'chamfer') {
+        if (sel.line1Id) lineIdsInSelectedChamfers.add(sel.line1Id);
+        if (sel.line2Id) lineIdsInSelectedChamfers.add(sel.line2Id);
       }
     });
 
@@ -2968,8 +2976,8 @@ function CanvasEditor_CanvasEditor() {
         return sel.id === element.id;
       });
       if (element.type === 'line') {
-        // Если линия входит в выбранный fillet, выделяем её
-        var shouldHighlight = lineIdsInSelectedFillets.has(element.id);
+        // Если линия входит в выбранный fillet или chamfer, выделяем её
+        var shouldHighlight = lineIdsInSelectedFillets.has(element.id) || lineIdsInSelectedChamfers.has(element.id);
         drawLine(scope, element, isSelected || shouldHighlight, false, null, pointNumberMap);
       } else if (element.type === 'arc') {
         drawArc(scope, element, isSelected);
@@ -3621,15 +3629,23 @@ function CanvasEditor_CanvasEditor() {
         drawGrid(scope, gridStepPixels, false);
       }
 
-      // Находим все fillet для проверки выделения линий
+      // Находим все fillet и chamfer для проверки выделения линий
       var fillets = elements.filter(function (el) {
         return el.type === 'fillet';
       });
+      var chamfers = elements.filter(function (el) {
+        return el.type === 'chamfer';
+      });
       var lineIdsInSelectedFillets = new Set();
+      var lineIdsInSelectedChamfers = new Set();
       selectedElements.forEach(function (sel) {
         if (sel.type === 'fillet') {
           if (sel.line1Id) lineIdsInSelectedFillets.add(sel.line1Id);
           if (sel.line2Id) lineIdsInSelectedFillets.add(sel.line2Id);
+        }
+        if (sel.type === 'chamfer') {
+          if (sel.line1Id) lineIdsInSelectedChamfers.add(sel.line1Id);
+          if (sel.line2Id) lineIdsInSelectedChamfers.add(sel.line2Id);
         }
       });
 
@@ -3644,13 +3660,15 @@ function CanvasEditor_CanvasEditor() {
         var isHovered = hoveredElement && hoveredElement.id === element.id;
         var isDeleteHovered = selectedTool === 'delete' && isHovered;
         if (element.type === 'line') {
-          // Если линия входит в выбранный fillet, выделяем её
-          var shouldHighlight = lineIdsInSelectedFillets.has(element.id);
+          // Если линия входит в выбранный fillet или chamfer, выделяем её
+          var shouldHighlight = lineIdsInSelectedFillets.has(element.id) || lineIdsInSelectedChamfers.has(element.id);
           drawLine(scope, element, isSelected || shouldHighlight, isHovered && selectedTool !== 'delete', hoveredPointInfo, pointNumberMap, isDeleteHovered);
         } else if (element.type === 'arc') {
           drawArc(scope, element, isSelected, isHovered && selectedTool !== 'delete', isDeleteHovered);
         } else if (element.type === 'fillet') {
           drawFillet(scope, element, isSelected || hoveredElement && hoveredElement.id === element.id && selectedTool !== 'delete', elements, pointNumberMap, isDeleteHovered);
+        } else if (element.type === 'chamfer') {
+          drawChamfer(scope, element, isSelected || hoveredElement && hoveredElement.id === element.id && selectedTool !== 'delete', elements, pointNumberMap, isDeleteHovered);
         }
       });
 
@@ -3841,15 +3859,23 @@ function CanvasEditor_CanvasEditor() {
             drawGrid(scope, gridStepPixels, false);
           }
 
-          // Находим fillet для выделения линий
+          // Находим fillet и chamfer для выделения линий
           var fillets = updatedState.elements.filter(function (e) {
             return e.type === 'fillet';
           });
+          var chamfers = updatedState.elements.filter(function (e) {
+            return e.type === 'chamfer';
+          });
           var lineIdsInSelectedFillets = new Set();
+          var lineIdsInSelectedChamfers = new Set();
           updatedState.selectedElements.forEach(function (sel) {
             if (sel.type === 'fillet') {
               if (sel.line1Id) lineIdsInSelectedFillets.add(sel.line1Id);
               if (sel.line2Id) lineIdsInSelectedFillets.add(sel.line2Id);
+            }
+            if (sel.type === 'chamfer') {
+              if (sel.line1Id) lineIdsInSelectedChamfers.add(sel.line1Id);
+              if (sel.line2Id) lineIdsInSelectedChamfers.add(sel.line2Id);
             }
           });
           var pointNumberMap = assignPointNumbers(updatedState.elements);
@@ -3858,7 +3884,7 @@ function CanvasEditor_CanvasEditor() {
               return sel.id === el.id;
             });
             if (el.type === 'line') {
-              var shouldHighlight = lineIdsInSelectedFillets.has(el.id);
+              var shouldHighlight = lineIdsInSelectedFillets.has(el.id) || lineIdsInSelectedChamfers.has(el.id);
               drawLine(scope, el, isSelected || shouldHighlight, false, null, pointNumberMap);
             } else if (el.type === 'arc') {
               drawArc(scope, el, isSelected, false);
