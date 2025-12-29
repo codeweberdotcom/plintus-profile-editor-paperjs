@@ -66,6 +66,7 @@ function PropertiesPanel({ elements }) {
     // Вычисляем сводную информацию по всем элементам
     const allLines = allElements.filter(el => el.type === 'line');
     const allFillets = allElements.filter(el => el.type === 'fillet');
+    const allChamfers = allElements.filter(el => el.type === 'chamfer');
     
     const totalLinesLength = allLines.reduce((sum, line) => {
         return sum + getElementLength(line);
@@ -73,6 +74,7 @@ function PropertiesPanel({ elements }) {
     
     const totalLinesLengthText = formatLengthMM(totalLinesLength);
     const filletsCount = allFillets.length;
+    const chamfersCount = allChamfers.length;
 
     return (
         <div className="plintus-properties-panel">
@@ -96,18 +98,20 @@ function PropertiesPanel({ elements }) {
                         <span className="summary-label">Количество скруглений:</span>
                         <span className="summary-value">{filletsCount}</span>
                     </div>
+                    <div className="summary-item">
+                        <span className="summary-label">Количество скосов:</span>
+                        <span className="summary-value">{chamfersCount}</span>
+                    </div>
                 </div>
 
-                <div className="properties-section">
-                    <h3 className="properties-section-title">
+                <div className="properties-summary">
+                    <h4>
                         {elements.length === 0 
                             ? 'Свойства' 
                             : `Свойства (${elements.length} выбрано)`}
-                    </h3>
-                </div>
-
-                <div className="properties-elements-list">
-                    <h4>Выбранные элементы:</h4>
+                    </h4>
+                    <div className="properties-elements-list">
+                        <h4 style={{ marginTop: 0 }}>Выбранные элементы:</h4>
                         {elements.length > 0 ? (
                             <ul className="properties-elements-list-items">
                                 {elements.map((element, index) => {
@@ -126,6 +130,7 @@ function PropertiesPanel({ elements }) {
                             <p className="properties-empty-state">Элементы не выбраны</p>
                         )}
                     </div>
+                </div>
 
                 {lineElements.length > 0 && (
                     <LineProperties elements={lineElements} />

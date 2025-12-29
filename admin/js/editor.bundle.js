@@ -5536,12 +5536,30 @@ function CanvasEditor_CanvasEditor() {
       strokeColor: strokeColor,
       strokeWidth: lineWidth
     });
-    var textElement = new paper.PointText({
-      point: [horizontalEndX + 5, textY],
+
+    // Создаем текст временно для получения его ширины
+    var tempText = new paper.PointText({
+      point: [0, 0],
       content: text,
       fillColor: strokeColor,
-      fontSize: 10
+      fontSize: 11
     });
+    var textWidth = tempText.bounds.width;
+    tempText.remove(); // Удаляем временный текст
+
+    // Выравниваем текст по правому краю горизонтальной линии
+    var finalTextX = horizontalEndX - textWidth;
+
+    // Текст - выровнен по правому краю горизонтальной линии
+    var textElement = new paper.PointText({
+      point: [finalTextX, textY],
+      content: text,
+      fillColor: strokeColor,
+      fontSize: 11
+    });
+
+    // Перемещаем текст на передний план, чтобы он был виден поверх линий
+    textElement.bringToFront();
   };
   var createChamferAtCorner = function createChamferAtCorner(line1Param, line2Param) {
     // Получаем актуальные версии линий из store перед созданием chamfer
@@ -6282,11 +6300,15 @@ function PropertiesPanel_PropertiesPanel(_ref) {
   var allFillets = allElements.filter(function (el) {
     return el.type === 'fillet';
   });
+  var allChamfers = allElements.filter(function (el) {
+    return el.type === 'chamfer';
+  });
   var totalLinesLength = allLines.reduce(function (sum, line) {
     return sum + getElementLength(line);
   }, 0);
   var totalLinesLengthText = formatLengthMM(totalLinesLength);
   var filletsCount = allFillets.length;
+  var chamfersCount = allChamfers.length;
   return /*#__PURE__*/external_React_default().createElement("div", {
     className: "plintus-properties-panel"
   }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -6310,13 +6332,21 @@ function PropertiesPanel_PropertiesPanel(_ref) {
     className: "summary-label"
   }, "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0441\u043A\u0440\u0443\u0433\u043B\u0435\u043D\u0438\u0439:"), /*#__PURE__*/external_React_default().createElement("span", {
     className: "summary-value"
-  }, filletsCount))), /*#__PURE__*/external_React_default().createElement("div", {
-    className: "properties-section"
-  }, /*#__PURE__*/external_React_default().createElement("h3", {
-    className: "properties-section-title"
-  }, elements.length === 0 ? 'Свойства' : "\u0421\u0432\u043E\u0439\u0441\u0442\u0432\u0430 (".concat(elements.length, " \u0432\u044B\u0431\u0440\u0430\u043D\u043E)"))), /*#__PURE__*/external_React_default().createElement("div", {
+  }, filletsCount)), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "summary-item"
+  }, /*#__PURE__*/external_React_default().createElement("span", {
+    className: "summary-label"
+  }, "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0441\u043A\u043E\u0441\u043E\u0432:"), /*#__PURE__*/external_React_default().createElement("span", {
+    className: "summary-value"
+  }, chamfersCount))), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "properties-summary"
+  }, /*#__PURE__*/external_React_default().createElement("h4", null, elements.length === 0 ? 'Свойства' : "\u0421\u0432\u043E\u0439\u0441\u0442\u0432\u0430 (".concat(elements.length, " \u0432\u044B\u0431\u0440\u0430\u043D\u043E)")), /*#__PURE__*/external_React_default().createElement("div", {
     className: "properties-elements-list"
-  }, /*#__PURE__*/external_React_default().createElement("h4", null, "\u0412\u044B\u0431\u0440\u0430\u043D\u043D\u044B\u0435 \u044D\u043B\u0435\u043C\u0435\u043D\u0442\u044B:"), elements.length > 0 ? /*#__PURE__*/external_React_default().createElement("ul", {
+  }, /*#__PURE__*/external_React_default().createElement("h4", {
+    style: {
+      marginTop: 0
+    }
+  }, "\u0412\u044B\u0431\u0440\u0430\u043D\u043D\u044B\u0435 \u044D\u043B\u0435\u043C\u0435\u043D\u0442\u044B:"), elements.length > 0 ? /*#__PURE__*/external_React_default().createElement("ul", {
     className: "properties-elements-list-items"
   }, elements.map(function (element, index) {
     var elementLength = getElementLength(element);
@@ -6333,7 +6363,7 @@ function PropertiesPanel_PropertiesPanel(_ref) {
     }, lengthText));
   })) : /*#__PURE__*/external_React_default().createElement("p", {
     className: "properties-empty-state"
-  }, "\u042D\u043B\u0435\u043C\u0435\u043D\u0442\u044B \u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D\u044B")), lineElements.length > 0 && /*#__PURE__*/external_React_default().createElement(Sidebar_LineProperties, {
+  }, "\u042D\u043B\u0435\u043C\u0435\u043D\u0442\u044B \u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D\u044B"))), lineElements.length > 0 && /*#__PURE__*/external_React_default().createElement(Sidebar_LineProperties, {
     elements: lineElements
   }), arcElements.length === 1 && /*#__PURE__*/external_React_default().createElement(Sidebar_ArcProperties, {
     element: arcElements[0]

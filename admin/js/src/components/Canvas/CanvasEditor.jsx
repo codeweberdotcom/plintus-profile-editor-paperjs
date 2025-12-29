@@ -2307,12 +2307,29 @@ function CanvasEditor() {
             strokeWidth: lineWidth,
         });
 
-        const textElement = new paper.PointText({
-            point: [horizontalEndX + 5, textY],
+        // Создаем текст временно для получения его ширины
+        const tempText = new paper.PointText({
+            point: [0, 0],
             content: text,
             fillColor: strokeColor,
-            fontSize: 10,
+            fontSize: 11,
         });
+        const textWidth = tempText.bounds.width;
+        tempText.remove(); // Удаляем временный текст
+
+        // Выравниваем текст по правому краю горизонтальной линии
+        const finalTextX = horizontalEndX - textWidth;
+
+        // Текст - выровнен по правому краю горизонтальной линии
+        const textElement = new paper.PointText({
+            point: [finalTextX, textY],
+            content: text,
+            fillColor: strokeColor,
+            fontSize: 11,
+        });
+        
+        // Перемещаем текст на передний план, чтобы он был виден поверх линий
+        textElement.bringToFront();
     };
 
     const createChamferAtCorner = (line1Param, line2Param) => {
