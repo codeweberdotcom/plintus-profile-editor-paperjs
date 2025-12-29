@@ -5,6 +5,7 @@ import Grid from './Grid';
 import './CanvasEditor.css';
 
 function CanvasEditor() {
+    
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
     const paperScopeRef = useRef(null);
@@ -15,6 +16,7 @@ function CanvasEditor() {
     const [isPanning, setIsPanning] = useState(false); // Состояние для перетаскивания view
     const [panStartPoint, setPanStartPoint] = useState(null); // Начальная точка для pan
     const [initialViewCenter, setInitialViewCenter] = useState(null); // Исходный центр view
+    const isMiddleButtonPressedRef = useRef(false); // Флаг для отслеживания средней кнопки мыши
     
     const {
         elements,
@@ -91,18 +93,29 @@ function CanvasEditor() {
             
             // Устанавливаем начальный масштаб
             scope.activate();
-            // Устанавливаем начальный масштаб 2x
-            const initialZoom = useEditorStore.getState().zoom;
-            scope.view.scale(initialZoom, new paper.Point(width / 2, height / 2));
+            // Получаем начальный масштаб из store и убеждаемся, что он не меньше минимального
+            const state = useEditorStore.getState();
+            const minZoom = state.getMinZoom();
+            let initialZoom = state.zoom;
+            // Убеждаемся, что начальный масштаб не меньше минимального
+            if (initialZoom < minZoom) {
+                initialZoom = Math.max(minZoom, Math.min(2, minZoom * 2));
+                useEditorStore.setState({ zoom: initialZoom });
+            }
+            const centerPoint = new paper.Point(width / 2, height / 2);
+            scope.view.scale(initialZoom, centerPoint);
             
-            // Сохраняем исходный центр view (после установки масштаба)
-            // В Paper.js view.center - это центр видимой области в координатах проекта
-            // После масштабирования относительно центра canvas, центр view должен быть в центре canvas в координатах проекта
-            const savedCenter = scope.view.center.clone();
-            setInitialViewCenter(savedCenter);
+            // Устанавливаем центр view так, чтобы центр сетки был в центре видимой области
+            // Центр сетки в координатах проекта: (viewbox.width/2, viewbox.height/2)
+            const gridCenterX = viewbox.width / 2;
+            const gridCenterY = viewbox.height / 2;
+            scope.view.center = new paper.Point(gridCenterX, gridCenterY);
+            
+            // Сохраняем исходный центр view
+            setInitialViewCenter(scope.view.center.clone());
             
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:101',message:'initial view center saved',data:{initialViewCenter:savedCenter,width,height,initialZoom},timestamp:Date.now(),sessionId:'debug-session',runId:'reset-view',hypothesisId:'A'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:101',message:'initial view center saved',data:{initialViewCenter:scope.view.center,viewCenter:scope.view.center,width,height,initialZoom,centerPoint,gridCenterX,gridCenterY},timestamp:Date.now(),sessionId:'debug-session',runId:'reset-view',hypothesisId:'A'})}).catch(()=>{});
             // #endregion
             
             paperScopeRef.current = scope;
@@ -152,21 +165,37 @@ function CanvasEditor() {
         const width = containerSize.width || viewbox.width;
         const height = containerSize.height || viewbox.height;
         
-        // Проверяем, был ли сброс масштаба (zoom вернулся к 2)
-        const wasReset = prevZoomRef.current !== 2 && zoom === 2;
+        // Проверяем, был ли сброс масштаба (zoom вернулся к начальному значению)
+        // Начальное значение - это минимальный масштаб или 2x, в зависимости от того, что больше
+        const minZoom = useEditorStore.getState().getMinZoom();
+        const initialZoom = Math.max(minZoom, Math.min(2, minZoom * 2));
+        const wasReset = prevZoomRef.current !== initialZoom && Math.abs(zoom - initialZoom) < 0.01;
         prevZoomRef.current = zoom;
-        
-        // Если был сброс, также сбрасываем позицию view к исходному центру
-        if (wasReset && initialViewCenter) {
-            scope.view.center = initialViewCenter;
-        }
-        
+                
+                // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:150',message:'zoom change',data:{zoom,wasReset,prevZoom:prevZoomRef.current,initialViewCenter,currentViewCenter:scope.view.center},timestamp:Date.now(),sessionId:'debug-session',runId:'reset-view',hypothesisId:'B'})}).catch(()=>{});
+                // #endregion
+                
         // Вычисляем текущий масштаб view
         const currentScale = scope.view.zoom || 1;
         const scaleFactor = zoom / currentScale;
+        const centerPoint = new paper.Point(width / 2, height / 2);
         
         // При программном изменении масштабируем относительно центра canvas
-        scope.view.scale(scaleFactor, new paper.Point(width / 2, height / 2));
+        scope.view.scale(scaleFactor, centerPoint);
+        
+        // Если был сброс, устанавливаем центр view так, чтобы центр сетки был в центре видимой области
+        // Это гарантирует, что сетка будет в центре без пустого пространства
+        if (wasReset) {
+            // Центр сетки в координатах проекта: (viewbox.width/2, viewbox.height/2)
+            const gridCenterX = viewbox.width / 2;
+            const gridCenterY = viewbox.height / 2;
+            scope.view.center = new paper.Point(gridCenterX, gridCenterY);
+                // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:175',message:'view center reset to grid center',data:{wasReset,gridCenterX,gridCenterY,viewCenter:scope.view.center,centerPoint,zoom,currentScale,scaleFactor},timestamp:Date.now(),sessionId:'debug-session',runId:'reset-view',hypothesisId:'E'})}).catch(()=>{});
+                                // #endregion
+                            }
+        
         scope.view.draw();
     }, [zoom, containerSize.width, containerSize.height, viewbox.width, viewbox.height, initialViewCenter]);
 
@@ -201,6 +230,11 @@ function CanvasEditor() {
             const minZoom = useEditorStore.getState().getMinZoom();
             const newZoom = Math.max(minZoom, Math.min(10, currentZoom * zoomFactor));
             
+            // Если масштаб не изменился (уже на минимальном или максимальном уровне), не применяем изменения
+            if (Math.abs(newZoom - currentZoom) < 0.001) {
+                return; // Не изменяем масштаб, если он уже на границе
+            }
+            
             // Применяем масштабирование относительно позиции курсора
             const scaleFactor = newZoom / currentZoom;
             scope.view.scale(scaleFactor, viewPoint);
@@ -215,6 +249,44 @@ function CanvasEditor() {
         };
     }, [setZoom]);
 
+    // Глобальный обработчик для отслеживания средней кнопки мыши
+    useEffect(() => {
+        const handleGlobalMouseDown = (event) => {
+            // Проверяем, что событие происходит на canvas
+            const canvas = canvasRef.current;
+            if (!canvas) {
+                return;
+            }
+            
+            const target = event.target;
+            if (target !== canvas && !canvas.contains(target)) {
+                return;
+            }
+            
+            // Проверяем, что нажата средняя кнопка мыши (колесико) или зажато колесико
+            const isMiddleButton = 
+                event.button === 1 || 
+                event.buttons === 4 || 
+                event.which === 2;
+            
+            if (isMiddleButton) {
+                // Устанавливаем флаг, что средняя кнопка нажата
+                isMiddleButtonPressedRef.current = true;
+            } else {
+                // Сбрасываем флаг для других кнопок
+                isMiddleButtonPressedRef.current = false;
+            }
+        };
+        
+        // Используем capture phase для установки флага ДО того, как Paper.js обработает событие,
+        // но НЕ блокируем событие - пусть оно доходит до Paper.js tool, где мы его заблокируем
+        document.addEventListener('mousedown', handleGlobalMouseDown, true);
+
+        return () => {
+            document.removeEventListener('mousedown', handleGlobalMouseDown, true);
+        };
+    }, []);
+
     // Обработчик перетаскивания view при зажатом колесике мыши
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -224,9 +296,17 @@ function CanvasEditor() {
 
         const handleMouseDown = (event) => {
             // Проверяем, что нажата средняя кнопка мыши (колесико) или зажато колесико
-            if (event.button === 1 || event.buttons === 4) {
-                event.preventDefault();
-                event.stopPropagation();
+            const isMiddleButton = 
+                event.button === 1 || 
+                event.buttons === 4 || 
+                event.which === 2;
+            
+            if (isMiddleButton) {
+                // Устанавливаем флаг, что средняя кнопка нажата
+                isMiddleButtonPressedRef.current = true;
+                
+                // НЕ блокируем событие здесь - пусть оно доходит до Paper.js tool,
+                // где мы его заблокируем через проверку флага
                 
                 setIsPanning(true);
                 const rect = canvas.getBoundingClientRect();
@@ -235,6 +315,9 @@ function CanvasEditor() {
                     y: event.clientY - rect.top,
                     viewCenter: scope.view.center.clone()
                 });
+            } else {
+                // Сбрасываем флаг для других кнопок
+                isMiddleButtonPressedRef.current = false;
             }
         };
 
@@ -260,8 +343,52 @@ function CanvasEditor() {
             const zoom = scope.view.zoom || 1;
             const deltaProject = deltaView.divide(zoom);
 
-            // Перемещаем центр view на величину смещения (в обратном направлении)
-            scope.view.center = panStartPoint.viewCenter.subtract(deltaProject);
+            // Вычисляем новое положение центра view
+            const newCenter = panStartPoint.viewCenter.subtract(deltaProject);
+            
+            // Ограничиваем перемещение границами сетки
+            // Границы сетки: от (0, 0) до (viewbox.width, viewbox.height)
+            const gridMinX = 0;
+            const gridMinY = 0;
+            const gridMaxX = viewbox.width;
+            const gridMaxY = viewbox.height;
+            
+            // Размер видимой области в координатах проекта
+            const viewWidth = (containerSize.width || viewbox.width) / zoom;
+            const viewHeight = (containerSize.height || viewbox.height) / zoom;
+            
+            // Границы для центра view (чтобы сетка всегда была видна)
+            // Левая граница видимой области = center.x - viewWidth/2
+            // Правая граница видимой области = center.x + viewWidth/2
+            // Верхняя граница видимой области = center.y - viewHeight/2
+            // Нижняя граница видимой области = center.y + viewHeight/2
+            
+            // Если видимая область больше сетки, центр должен быть в центре сетки
+            let minCenterX, maxCenterX, minCenterY, maxCenterY;
+            if (viewWidth >= gridMaxX) {
+                // Видимая область больше или равна сетке по ширине - центр должен быть в центре сетки
+                minCenterX = maxCenterX = gridMaxX / 2;
+        } else {
+                // Видимая область меньше сетки - ограничиваем перемещение
+                minCenterX = gridMinX + viewWidth / 2;
+                maxCenterX = gridMaxX - viewWidth / 2;
+            }
+            
+            if (viewHeight >= gridMaxY) {
+                // Видимая область больше или равна сетке по высоте - центр должен быть в центре сетки
+                minCenterY = maxCenterY = gridMaxY / 2;
+        } else {
+                // Видимая область меньше сетки - ограничиваем перемещение
+                minCenterY = gridMinY + viewHeight / 2;
+                maxCenterY = gridMaxY - viewHeight / 2;
+            }
+            
+            // Ограничиваем центр view границами
+            const clampedCenterX = Math.max(minCenterX, Math.min(maxCenterX, newCenter.x));
+            const clampedCenterY = Math.max(minCenterY, Math.min(maxCenterY, newCenter.y));
+            
+            // Устанавливаем ограниченный центр view
+            scope.view.center = new paper.Point(clampedCenterX, clampedCenterY);
             scope.view.draw();
         };
 
@@ -269,6 +396,8 @@ function CanvasEditor() {
             if (event.button === 1 || event.buttons === 0) {
                 setIsPanning(false);
                 setPanStartPoint(null);
+                // Сбрасываем флаг средней кнопки мыши
+                isMiddleButtonPressedRef.current = false;
             }
         };
 
@@ -279,14 +408,16 @@ function CanvasEditor() {
             }
         };
 
-        canvas.addEventListener('mousedown', handleMouseDown);
+        // НЕ используем capture phase - пусть Paper.js обработает событие первым,
+        // а мы только установим флаг для последующей проверки в tool.onMouseDown
+        canvas.addEventListener('mousedown', handleMouseDown, false); // false = bubble phase
         canvas.addEventListener('mousemove', handleMouseMove);
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseUp);
         canvas.addEventListener('contextmenu', handleContextMenu);
 
         return () => {
-            canvas.removeEventListener('mousedown', handleMouseDown);
+            canvas.removeEventListener('mousedown', handleMouseDown, false); // false = bubble phase
             canvas.removeEventListener('mousemove', handleMouseMove);
             canvas.removeEventListener('mouseup', handleMouseUp);
             canvas.removeEventListener('mouseleave', handleMouseUp);
@@ -296,9 +427,7 @@ function CanvasEditor() {
 
     // Отрисовка элементов на canvas
     useEffect(() => {
-        console.log('useEffect for rendering called, selectedTool:', selectedTool);
         if (!paperProject || !paperScopeRef.current) {
-            console.log('Paper project not ready');
             return;
         }
 
@@ -338,12 +467,14 @@ function CanvasEditor() {
                 drawArc(scope, element, isSelected);
             } else if (element.type === 'fillet') {
                 drawFillet(scope, element, isSelected, elements, pointNumberMap);
+            } else if (element.type === 'chamfer') {
+                drawChamfer(scope, element, isSelected, elements, pointNumberMap);
             }
         });
 
-        // В режиме "Скругление" отображаем все точки соединений между линиями
+        // В режиме "Скругление" или "Фаска" отображаем все точки соединений между линиями
         // Отрисовываем ПОСЛЕ всех элементов, чтобы точки были видны поверх
-        if (selectedTool === 'arc') {
+        if (selectedTool === 'arc' || selectedTool === 'chamfer') {
             const connectionPoints = findAllConnectionPoints(elements);
             connectionPoints.forEach((cp, index) => {
                 // Создаем круг для точки соединения
@@ -378,6 +509,23 @@ function CanvasEditor() {
         const tool = new paper.Tool();
         
         tool.onMouseDown = (event) => {
+            // Проверяем, что нажата средняя кнопка мыши (колесико) - блокируем обработку
+            // Проверяем все возможные способы определения средней кнопки
+            const checkMiddleButton = (evt) => {
+                if (!evt) return false;
+                return evt.button === 1 || evt.buttons === 4 || evt.which === 2;
+            };
+            
+            const nativeEvent = event.event || event.originalEvent;
+            const isMiddleButton = 
+                checkMiddleButton(nativeEvent) ||
+                checkMiddleButton(window.event) ||
+                isMiddleButtonPressedRef.current;
+            
+            if (isMiddleButton) {
+                return; // Выходим немедленно, не обрабатываем событие
+            }
+            
             const point = { x: event.point.x, y: event.point.y };
             let snappedPoint = snapToGrid(point, gridStepPixels);
 
@@ -471,17 +619,27 @@ function CanvasEditor() {
                         const dist = distance(point, el.center);
                         return Math.abs(dist - el.radius) < 10;
                     }
-                        if (el.type === 'fillet') {
-                            // Проверяем, находится ли точка на дуге fillet
-                            const distToArcCenter = distance(point, el.arc.center);
-                            const onArc = Math.abs(distToArcCenter - el.arc.radius) < 10;
-                            // Также проверяем линии, входящие в fillet
-                            const line1 = elements.find(l => l.id === el.line1Id);
-                            const line2 = elements.find(l => l.id === el.line2Id);
-                            const onLine1 = line1 && line1.type === 'line' ? isPointOnLine(point, line1.start, line1.end, 10) : false;
-                            const onLine2 = line2 && line2.type === 'line' ? isPointOnLine(point, line2.start, line2.end, 10) : false;
-                            return onLine1 || onLine2 || onArc;
-                        }
+                    if (el.type === 'fillet') {
+                        // Проверяем, находится ли точка на дуге fillet
+                        const distToArcCenter = distance(point, el.arc.center);
+                        const onArc = Math.abs(distToArcCenter - el.arc.radius) < 10;
+                        // Также проверяем линии, входящие в fillet
+                        const line1 = elements.find(l => l.id === el.line1Id);
+                        const line2 = elements.find(l => l.id === el.line2Id);
+                        const onLine1 = line1 && line1.type === 'line' ? isPointOnLine(point, line1.start, line1.end, 10) : false;
+                        const onLine2 = line2 && line2.type === 'line' ? isPointOnLine(point, line2.start, line2.end, 10) : false;
+                        return onLine1 || onLine2 || onArc;
+                    }
+                    if (el.type === 'chamfer') {
+                        // Проверяем, находится ли точка на линии chamfer
+                        const onChamfer = isPointOnLine(point, el.start, el.end, 10);
+                        // Также проверяем линии, входящие в chamfer
+                        const line1 = elements.find(l => l.id === el.line1Id);
+                        const line2 = elements.find(l => l.id === el.line2Id);
+                        const onLine1 = line1 && line1.type === 'line' ? isPointOnLine(point, line1.start, line1.end, 10) : false;
+                        const onLine2 = line2 && line2.type === 'line' ? isPointOnLine(point, line2.start, line2.end, 10) : false;
+                        return onLine1 || onLine2 || onChamfer;
+                    }
                     return false;
                 });
                 
@@ -490,15 +648,16 @@ function CanvasEditor() {
                 } else if (selectedElements.length > 0) {
                     deleteSelectedElements();
                 }
-            } else if (selectedTool === 'arc') {
+            } else if (selectedTool === 'arc' || selectedTool === 'chamfer') {
                 // В режиме arc можно редактировать только радиусы (fillet и arc элементы)
-                // При клике на точку соединения создается радиус между двумя линиями
+                // В режиме chamfer можно редактировать только фаски (chamfer элементы)
+                // При клике на точку соединения создается радиус/фаска между двумя линиями
                 
                 // #region agent log
                 fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:320',message:'arc mode click',data:{point:{x:point.x,y:point.y}},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'A'})}).catch(()=>{});
                 // #endregion
                 
-                // Сначала проверяем, кликнули ли на fillet или arc элемент для редактирования
+                // Сначала проверяем, кликнули ли на fillet, arc или chamfer элемент для редактирования
                 const clickedFillet = elements.find(el => {
                     if (el.type === 'fillet') {
                         // Проверяем, находится ли точка на дуге fillet
@@ -516,6 +675,14 @@ function CanvasEditor() {
                     return false;
                 });
                 
+                const clickedChamfer = elements.find(el => {
+                    if (el.type === 'chamfer') {
+                        // Проверяем, находится ли точка на линии chamfer
+                        return isPointOnLine(point, el.start, el.end, 10);
+                    }
+                    return false;
+                });
+                
                 // #region agent log
                 fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:342',message:'fillet/arc check',data:{clickedFillet:!!clickedFillet,clickedArc:!!clickedArc},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
                 // #endregion
@@ -526,6 +693,9 @@ function CanvasEditor() {
                 } else if (clickedArc) {
                     // Выбираем arc элемент для редактирования
                     selectElement(clickedArc);
+                } else if (clickedChamfer) {
+                    // Выбираем chamfer элемент для редактирования
+                    selectElement(clickedChamfer);
                 } else {
                     // Проверяем клик на точку соединения
                     const connectionPoints = findAllConnectionPoints(elements);
@@ -555,18 +725,26 @@ function CanvasEditor() {
                         // #endregion
                         
                         if (line1FromStore && line2FromStore && line1FromStore.type === 'line' && line2FromStore.type === 'line') {
-                            // #region agent log
-                            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'calling createFilletAtCorner',data:{line1Id:line1FromStore.id,line2Id:line2FromStore.id},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
-                            // #endregion
-                            try {
-                                createFilletAtCorner(line1FromStore, line2FromStore);
+                            if (selectedTool === 'arc') {
                                 // #region agent log
-                                fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'createFilletAtCorner completed',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
+                                fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'calling createFilletAtCorner',data:{line1Id:line1FromStore.id,line2Id:line2FromStore.id},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
                                 // #endregion
-                            } catch (error) {
-                                // #region agent log
-                                fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'createFilletAtCorner error',data:{error:error.message,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
-                                // #endregion
+                                try {
+                                    createFilletAtCorner(line1FromStore, line2FromStore);
+                                    // #region agent log
+                                    fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'createFilletAtCorner completed',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
+                                    // #endregion
+                                } catch (error) {
+                                    // #region agent log
+                                    fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'createFilletAtCorner error',data:{error:error.message,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
+                                    // #endregion
+                                }
+                            } else if (selectedTool === 'chamfer') {
+                                try {
+                                    createChamferAtCorner(line1FromStore, line2FromStore);
+                                } catch (error) {
+                                    console.error('Error creating chamfer:', error);
+                                }
                             }
                             selectElement(null);
                         }
@@ -656,6 +834,16 @@ function CanvasEditor() {
                     }
                     return false;
                 });
+            } else if (selectedTool === 'chamfer') {
+                // В режиме chamfer подсвечиваем только фаски (chamfer элементы) для редактирования
+                // Точки соединений отображаются и подсвечиваются отдельно
+                hoveredElement = elements.find(el => {
+                    if (el.type === 'chamfer') {
+                        // Проверяем, находится ли точка на линии chamfer
+                        return isPointOnLine(point, el.start, el.end, 10);
+                    }
+                    return false;
+                });
             } else if (selectedTool === 'delete') {
                 // В режиме delete находим элемент под курсором для подсветки красным
                 hoveredElement = elements.find(el => {
@@ -676,6 +864,16 @@ function CanvasEditor() {
                         const onLine1 = line1 && line1.type === 'line' ? isPointOnLine(point, line1.start, line1.end, 10) : false;
                         const onLine2 = line2 && line2.type === 'line' ? isPointOnLine(point, line2.start, line2.end, 10) : false;
                         return onLine1 || onLine2 || onArc;
+                    }
+                    if (el.type === 'chamfer') {
+                        // Проверяем, находится ли точка на линии chamfer
+                        const onChamfer = isPointOnLine(point, el.start, el.end, 10);
+                        // Также проверяем линии, входящие в chamfer
+                        const line1 = elements.find(l => l.id === el.line1Id);
+                        const line2 = elements.find(l => l.id === el.line2Id);
+                        const onLine1 = line1 && line1.type === 'line' ? isPointOnLine(point, line1.start, line1.end, 10) : false;
+                        const onLine2 = line2 && line2.type === 'line' ? isPointOnLine(point, line2.start, line2.end, 10) : false;
+                        return onLine1 || onLine2 || onChamfer;
                     }
                     return false;
                 });
@@ -726,8 +924,8 @@ function CanvasEditor() {
                 }
             });
             
-            // В режиме "Скругление" отображаем все точки соединений между линиями
-            if (selectedTool === 'arc') {
+            // В режиме "Скругление" или "Фаска" отображаем все точки соединений между линиями
+            if (selectedTool === 'arc' || selectedTool === 'chamfer') {
                 const connectionPoints = findAllConnectionPoints(elements);
                 connectionPoints.forEach((cp, index) => {
                     const circle = new paper.Path.Circle({
@@ -930,6 +1128,8 @@ function CanvasEditor() {
                                 drawArc(scope, el, isSelected, false);
                             } else if (el.type === 'fillet') {
                                 drawFillet(scope, el, isSelected, updatedState.elements, pointNumberMap);
+                            } else if (el.type === 'chamfer') {
+                                drawChamfer(scope, el, isSelected, updatedState.elements, pointNumberMap);
                             }
                         });
                         scope.view.draw();
@@ -946,6 +1146,7 @@ function CanvasEditor() {
             });
         };
 
+        tool.activate();
         tool.activate();
 
         return () => {
@@ -1458,6 +1659,76 @@ function CanvasEditor() {
         }
     };
 
+    const drawChamfer = (scope, element, isSelected = false, allElements = elements, pointNumberMap = null, isDeleteHovered = false) => {
+        if (element.type !== 'chamfer') return;
+        
+        // Приоритет: delete hovered (red) > selected > обычный
+        const strokeColor = isDeleteHovered ? '#ff0000' : (isSelected ? '#0073aa' : '#000');
+        const strokeWidth = (isDeleteHovered || isSelected) ? 3 : 2;
+        
+        // Отрисовываем прямую линию между точками обрезки
+        const startPoint = new paper.Point(element.start.x, element.start.y);
+        const endPoint = new paper.Point(element.end.x, element.end.y);
+        
+        const chamferLine = new paper.Path.Line({
+            from: startPoint,
+            to: endPoint,
+            strokeColor: strokeColor,
+            strokeWidth: strokeWidth,
+        });
+        chamferLine.data = { elementId: element.id, type: 'chamfer-line' };
+        
+        // Отображаем номера точек, если включена отладка
+        if (pointNumberMap && debugNumbersVisible) {
+            const line1 = allElements.find(el => el.id === element.line1Id);
+            const line2 = allElements.find(el => el.id === element.line2Id);
+            
+            if (line1 && line2) {
+                const distStartToLine1End = startPoint.getDistance(new paper.Point(line1.end.x, line1.end.y));
+                const distStartToLine1Start = startPoint.getDistance(new paper.Point(line1.start.x, line1.start.y));
+                const distEndToLine2End = endPoint.getDistance(new paper.Point(line2.end.x, line2.end.y));
+                const distEndToLine2Start = endPoint.getDistance(new paper.Point(line2.start.x, line2.start.y));
+                
+                const line1PointType = distStartToLine1End < distStartToLine1Start ? 'end' : 'start';
+                const line1Key = `${line1.id}:${line1PointType}`;
+                const line1PointNumber = pointNumberMap.get(line1Key);
+                
+                const line2PointType = distEndToLine2End < distEndToLine2Start ? 'end' : 'start';
+                const line2Key = `${line2.id}:${line2PointType}`;
+                const line2PointNumber = pointNumberMap.get(line2Key);
+                
+                if (line1PointNumber !== undefined) {
+                    new paper.PointText({
+                        point: [startPoint.x + 8, startPoint.y - 8],
+                        content: `C${line1PointNumber}`,
+                        fillColor: '#00ff00',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                    });
+                }
+                
+                if (line2PointNumber !== undefined) {
+                    new paper.PointText({
+                        point: [endPoint.x + 8, endPoint.y - 8],
+                        content: `C${line2PointNumber}`,
+                        fillColor: '#00ff00',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                    });
+                }
+            }
+        }
+        
+        // Отрисовываем сноску с глубиной, если включено отображение размеров
+        if (dimensionsVisible) {
+            const midPoint = {
+                x: (element.start.x + element.end.x) / 2,
+                y: (element.start.y + element.end.y) / 2,
+            };
+            drawChamferDimensionCallout(scope, element, isSelected, midPoint, element.depth, pointNumberMap, allElements);
+        }
+    };
+
     const drawDimensionCallout = (scope, element, isSelected) => {
         if (element.type !== 'line') return;
 
@@ -1584,7 +1855,7 @@ function CanvasEditor() {
             }
         } else {
             // Fallback: используем средний угол дуги
-            const arc = element.arc;
+        const arc = element.arc;
             const startAngleRad = (arc.startAngle * Math.PI) / 180;
             const angleRad = (arc.angle * Math.PI) / 180;
             const midAngleRad = startAngleRad + angleRad / 2;
@@ -1973,6 +2244,156 @@ function CanvasEditor() {
         
         // Добавляем fillet
         addElement(fillet);
+        
+        selectElement(null);
+    };
+
+    const drawChamferDimensionCallout = (scope, element, isSelected, midPoint, depth, pointNumberMap = null, allElements = []) => {
+        if (element.type !== 'chamfer') return;
+        
+        const depthMM = Math.round(pixelsToMM(depth));
+        const text = `${depthMM} мм`;
+        
+        const strokeColor = isSelected ? '#0073aa' : '#999';
+                    const lineWidth = 0.5;
+                    
+        // Линия от середины фаски
+        const leaderLength = 15;
+        const horizontalLength = 40;
+        const angle = 45;
+        const angleRad = (angle * Math.PI) / 180;
+
+        const leaderEndX = midPoint.x + Math.cos(angleRad) * leaderLength;
+        const leaderEndY = midPoint.y - Math.sin(angleRad) * leaderLength;
+
+        const horizontalStartX = leaderEndX;
+        const horizontalStartY = leaderEndY;
+        const horizontalEndX = leaderEndX + horizontalLength;
+        const horizontalEndY = leaderEndY;
+
+        const textY = horizontalStartY - 3;
+
+        const leaderLine = new paper.Path.Line({
+            from: [midPoint.x, midPoint.y],
+            to: [leaderEndX, leaderEndY],
+            strokeColor: strokeColor,
+            strokeWidth: lineWidth,
+        });
+
+        const horizontalLine = new paper.Path.Line({
+            from: [horizontalStartX, horizontalStartY],
+            to: [horizontalEndX, horizontalEndY],
+            strokeColor: strokeColor,
+            strokeWidth: lineWidth,
+        });
+
+        const textElement = new paper.PointText({
+            point: [horizontalEndX + 5, textY],
+            content: text,
+            fillColor: strokeColor,
+            fontSize: 10,
+        });
+    };
+
+    const createChamferAtCorner = (line1Param, line2Param) => {
+        // Получаем актуальные версии линий из store перед созданием chamfer
+        const currentState = useEditorStore.getState();
+        const actualLine1 = currentState.elements.find(el => el.id === line1Param.id);
+        const actualLine2 = currentState.elements.find(el => el.id === line2Param.id);
+        
+        if (!actualLine1 || !actualLine2 || actualLine1.type !== 'line' || actualLine2.type !== 'line') {
+            return;
+        }
+        
+        // Нормализуем порядок линий: всегда используем линию с меньшим ID как line1
+        const line1 = actualLine1.id < actualLine2.id ? actualLine1 : actualLine2;
+        const line2 = actualLine1.id < actualLine2.id ? actualLine2 : actualLine1;
+        
+        const connection = findConnectionPoint(line1, line2, 10);
+        
+        if (!connection) {
+            return;
+        }
+        
+        const chamferDepth = mmToPixels(2); // 2 мм по умолчанию
+        
+        // Определяем, какой конец каждой линии является точкой соединения
+        const distToLine1Start = distance(connection, line1.start);
+        const distToLine1End = distance(connection, line1.end);
+        const distToLine2Start = distance(connection, line2.start);
+        const distToLine2End = distance(connection, line2.end);
+        
+        // Вычисляем нормализованное направление каждой линии (от start к end)
+        const line1Dir = lineDirection(line1);
+        const line2Dir = lineDirection(line2);
+        
+        // Определяем, в какую сторону от connection находится точка обрезки для каждой линии
+        const line1DirToFar = distToLine1End < distToLine1Start ? { x: -line1Dir.x, y: -line1Dir.y } : line1Dir;
+        const line2DirToFar = distToLine2End < distToLine2Start ? { x: -line2Dir.x, y: -line2Dir.y } : line2Dir;
+        
+        // Вычисляем точки обрезки на линиях на расстоянии chamferDepth от connection
+        const chamferStartPoint = {
+            x: connection.x + line1DirToFar.x * chamferDepth,
+            y: connection.y + line1DirToFar.y * chamferDepth,
+        };
+        const chamferEndPoint = {
+            x: connection.x + line2DirToFar.x * chamferDepth,
+            y: connection.y + line2DirToFar.y * chamferDepth,
+        };
+        
+        // Используем эти направления для вычисления углов
+        const dir1 = line1DirToFar;
+        const dir2 = line2DirToFar;
+        
+        const angle1 = Math.atan2(dir1.y, dir1.x) * (180 / Math.PI);
+        const angle2 = Math.atan2(dir2.y, dir2.x) * (180 / Math.PI);
+        
+        // Сохраняем исходные длины линий
+        const originalLine1Length = line1.length || distance(line1.start, line1.end);
+        const originalLine2Length = line2.length || distance(line2.start, line2.end);
+        
+        const EPSILON = 0.01;
+        
+        // Определяем, какой конец каждой линии обрезается
+        const distChamferStartToLine1End = distance(chamferStartPoint, line1.end);
+        const distChamferStartToLine1Start = distance(chamferStartPoint, line1.start);
+        const line1EndTruncated = distChamferStartToLine1End + EPSILON < distChamferStartToLine1Start;
+        
+        const distChamferEndToLine2End = distance(chamferEndPoint, line2.end);
+        const distChamferEndToLine2Start = distance(chamferEndPoint, line2.start);
+        const line2EndTruncated = distChamferEndToLine2End + EPSILON < distChamferEndToLine2Start;
+        
+        // Обрезаем линии до точек обрезки
+        const line1Update = line1EndTruncated
+            ? { end: chamferStartPoint, length: originalLine1Length }
+            : { start: chamferStartPoint, length: originalLine1Length };
+        const line2Update = line2EndTruncated
+            ? { end: chamferEndPoint, length: originalLine2Length }
+            : { start: chamferEndPoint, length: originalLine2Length };
+        
+        // Обновляем обе линии
+        updateElement(line1.id, line1Update);
+        updateElement(line2.id, line2Update);
+        
+        // Создаем объект chamfer, который содержит прямую линию и ссылки на обрезанные линии
+        const chamfer = {
+            type: 'chamfer',
+            depth: chamferDepth,
+            line1Id: line1.id,
+            line2Id: line2.id,
+            start: chamferStartPoint,
+            end: chamferEndPoint,
+            connection: connection,
+            line1Direction: dir1,
+            line2Direction: dir2,
+            angle1: angle1,
+            angle2: angle2,
+            line1EndTruncated: line1EndTruncated,
+            line2EndTruncated: line2EndTruncated,
+        };
+        
+        // Добавляем chamfer
+        addElement(chamfer);
         
         selectElement(null);
     };

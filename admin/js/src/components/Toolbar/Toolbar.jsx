@@ -10,6 +10,7 @@ function Toolbar() {
         { id: 'line', label: 'Рисование', icon: 'uil-edit-alt' },
         { id: 'select', label: 'Редактировать', icon: 'uil-vector-square' },
         { id: 'arc', label: 'Скругление', icon: 'uil-circle' },
+        { id: 'chamfer', label: 'Фаска', icon: 'uil-angle-double-down' },
         { id: 'delete', label: 'Удаление', icon: 'uil-trash-alt' },
     ];
 

@@ -5,11 +5,13 @@ class Plugin {
     private $cpt;
     private $admin;
     private $api;
+    private $shortcode;
 
     public function __construct() {
         $this->cpt = new CPT();
         $this->admin = new Admin();
         $this->api = new API();
+        $this->shortcode = new Shortcode();
     }
 
     public function init() {
@@ -23,6 +25,9 @@ class Plugin {
         if (is_admin()) {
             $this->admin->init();
         }
+
+        // Initialize shortcode (работает и на фронтенде, и в админке)
+        $this->shortcode->init();
 
         // Load text domain
         add_action('plugins_loaded', [$this, 'load_textdomain']);

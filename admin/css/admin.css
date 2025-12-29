@@ -37,3 +37,25 @@
     position: relative;
 }
 
+/* Стили для шорткода на фронтенде */
+.plintus-editor-container {
+    width: 100%;
+    min-height: 500px;
+    height: 600px;
+    margin: 20px 0;
+    position: relative;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.plintus-editor-error {
+    padding: 20px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    color: #856404;
+    margin: 20px 0;
+    text-align: center;
+}
+

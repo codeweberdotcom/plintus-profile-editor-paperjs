@@ -2,6 +2,7 @@ import React from 'react';
 import LineProperties from './LineProperties';
 import ArcProperties from './ArcProperties';
 import FilletProperties from './FilletProperties';
+import ChamferProperties from './ChamferProperties';
 import { useEditorStore } from '../../store/useEditorStore';
 import { distance, formatLengthMM } from '../../utils/geometry';
 import './PropertiesPanel.css';
@@ -19,7 +20,8 @@ function PropertiesPanel({ elements }) {
         const typeLabels = {
             'line': 'Линия',
             'arc': 'Дуга',
-            'fillet': 'Скругление'
+            'fillet': 'Скругление',
+            'chamfer': 'Фаска'
         };
         return typeLabels[type] || type;
     };
@@ -27,6 +29,7 @@ function PropertiesPanel({ elements }) {
     const lineElements = elements.filter(el => el.type === 'line');
     const arcElements = elements.filter(el => el.type === 'arc');
     const filletElements = elements.filter(el => el.type === 'fillet');
+    const chamferElements = elements.filter(el => el.type === 'chamfer');
 
     const getElementLength = (element) => {
         if (element.type === 'line') {
@@ -49,6 +52,13 @@ function PropertiesPanel({ elements }) {
             const angle = (element.arc && element.arc.angle) || 0;
             const angleRad = (angle * Math.PI) / 180;
             return radius * angleRad;
+        }
+        if (element.type === 'chamfer') {
+            // Для chamfer - это прямая линия, используем расстояние между точками
+            if (element.start && element.end) {
+                return distance(element.start, element.end);
+            }
+            return 0;
         }
         return 0;
     };
@@ -127,6 +137,10 @@ function PropertiesPanel({ elements }) {
 
                 {filletElements.length === 1 && (
                     <FilletProperties element={filletElements[0]} />
+                )}
+
+                {chamferElements.length === 1 && (
+                    <ChamferProperties element={chamferElements[0]} />
                 )}
 
                 {/* Кнопка включения/выключения отладочных номеров */}

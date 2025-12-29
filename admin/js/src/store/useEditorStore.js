@@ -5,7 +5,7 @@ export const useEditorStore = create((set, get) => ({
     // State
     elements: [],
     selectedElements: [],
-    selectedTool: 'line', // 'line', 'arc', 'select', 'delete'
+    selectedTool: 'line', // 'line', 'arc', 'chamfer', 'select', 'delete'
     grid: {
         stepMM: 1,
         snap: true,
@@ -23,7 +23,14 @@ export const useEditorStore = create((set, get) => ({
     },
     isDrawing: false,
     currentLineStart: null,
-    zoom: 2, // Начальный масштаб (2x соответствует текущему масштабу)
+    zoom: (() => {
+        // Вычисляем начальный масштаб на основе минимального при инициализации
+        const gridStepPixels = mmToPixels(1); // Используем значение по умолчанию для grid.stepMM
+        const minGridSizePixels = 5;
+        const minZoom = Math.max(0.1, minGridSizePixels / gridStepPixels);
+        // Начальный масштаб должен быть не меньше минимального, но не больше 2x
+        return Math.max(minZoom, Math.min(2, minZoom * 2));
+    })(), // Начальный масштаб вычисляется на основе минимального
     
     // Actions
     setSelectedTool: (tool) => set({ selectedTool: tool, selectedElements: [] }),
@@ -39,8 +46,8 @@ export const useEditorStore = create((set, get) => ({
         // Находим элемент, который удаляется
         const elementToDelete = state.elements.find(el => el.id === id);
         
-        // Если это fillet, восстанавливаем связанные линии
-        if (elementToDelete && elementToDelete.type === 'fillet' && elementToDelete.connection) {
+        // Если это fillet или chamfer, восстанавливаем связанные линии
+        if (elementToDelete && (elementToDelete.type === 'fillet' || elementToDelete.type === 'chamfer') && elementToDelete.connection) {
             const { line1Id, line2Id, connection, line1EndTruncated, line2EndTruncated } = elementToDelete;
             
             // #region agent log
@@ -121,17 +128,18 @@ export const useEditorStore = create((set, get) => ({
     deleteSelectedElements: () => set((state) => {
         const selectedIds = new Set(state.selectedElements.map(el => el.id));
         
-        // Находим все fillet среди выбранных элементов
+        // Находим все fillet и chamfer среди выбранных элементов
         const filletsToDelete = state.selectedElements.filter(el => el.type === 'fillet');
+        const chamfersToDelete = state.selectedElements.filter(el => el.type === 'chamfer');
         
-        // Восстанавливаем линии для всех fillet
+        // Восстанавливаем линии для всех fillet и chamfer
         let updatedElements = [...state.elements];
         
-        filletsToDelete.forEach(fillet => {
-            if (fillet.connection) {
-                const { line1Id, line2Id, connection, line1EndTruncated, line2EndTruncated } = fillet;
+        const restoreLinesForElement = (element) => {
+            if (element.connection) {
+                const { line1Id, line2Id, connection, line1EndTruncated, line2EndTruncated } = element;
                 
-                // Находим линии для определения, какой конец был обрезан (fallback для старых fillet)
+                // Находим линии для определения, какой конец был обрезан (fallback для старых элементов)
                 const line1 = updatedElements.find(el => el.id === line1Id && el.type === 'line');
                 const line2 = updatedElements.find(el => el.id === line2Id && el.type === 'line');
                 
@@ -172,7 +180,10 @@ export const useEditorStore = create((set, get) => ({
                     return el;
                 });
             }
-        });
+        };
+        
+        filletsToDelete.forEach(restoreLinesForElement);
+        chamfersToDelete.forEach(restoreLinesForElement);
         
         // Удаляем выбранные элементы
         return {
@@ -399,6 +410,63 @@ export const useEditorStore = create((set, get) => ({
             return { elements: updatedElements };
         });
     },
+    updateChamferDepth: (chamferId, newDepthMM) => {
+        return set((state) => {
+            const chamfer = state.elements.find(el => el.id === chamferId && el.type === 'chamfer');
+            if (!chamfer) return state;
+
+            const newDepth = mmToPixels(newDepthMM);
+            const { connection, line1Direction, line2Direction, line1Id, line2Id, line1EndTruncated, line2EndTruncated } = chamfer;
+
+            // Вычисляем точки обрезки на линиях на расстоянии newDepth от connection
+            const chamferStartPoint = {
+                x: connection.x + line1Direction.x * newDepth,
+                y: connection.y + line1Direction.y * newDepth,
+            };
+            const chamferEndPoint = {
+                x: connection.x + line2Direction.x * newDepth,
+                y: connection.y + line2Direction.y * newDepth,
+            };
+
+            // Находим линии для обрезки
+            const line1 = state.elements.find(el => el.id === line1Id);
+            const line2 = state.elements.find(el => el.id === line2Id);
+
+            if (!line1 || !line2) return state;
+
+            // Сохраняем исходные длины
+            const originalLine1Length = line1.length || distance(line1.start, line1.end);
+            const originalLine2Length = line2.length || distance(line2.start, line2.end);
+
+            // Обновляем элементы
+            const updatedElements = state.elements.map((el) => {
+                if (el.id === chamferId) {
+                    // Обновляем chamfer
+                    return {
+                        ...el,
+                        depth: newDepth,
+                        start: chamferStartPoint,
+                        end: chamferEndPoint,
+                    };
+                } else if (el.id === line1Id) {
+                    // Обрезаем line1
+                    const update = line1EndTruncated
+                        ? { end: chamferStartPoint, length: originalLine1Length }
+                        : { start: chamferStartPoint, length: originalLine1Length };
+                    return { ...el, ...update };
+                } else if (el.id === line2Id) {
+                    // Обрезаем line2
+                    const update = line2EndTruncated
+                        ? { end: chamferEndPoint, length: originalLine2Length }
+                        : { start: chamferEndPoint, length: originalLine2Length };
+                    return { ...el, ...update };
+                }
+                return el;
+            });
+
+            return { elements: updatedElements };
+        });
+    },
     // Вычисляет минимальный масштаб на основе размера сетки
     // Минимальный масштаб должен быть таким, чтобы сетка была видна (минимум 5 пикселей между линиями)
     getMinZoom: () => {
@@ -417,10 +485,24 @@ export const useEditorStore = create((set, get) => ({
         const gridStepPixels = mmToPixels(state.grid.stepMM);
         const minGridSizePixels = 5; // Минимальный размер сетки в пикселях для видимости
         const minZoom = Math.max(0.1, minGridSizePixels / gridStepPixels);
+        
+        // Если текущий масштаб уже равен минимальному (или очень близок к нему), не уменьшаем
+        if (Math.abs(state.zoom - minZoom) < 0.001 || state.zoom <= minZoom) {
+            return; // Не изменяем масштаб, если он уже на минимальном уровне
+        }
+        
         const newZoom = Math.max(state.zoom / 1.2, minZoom); // Минимальный масштаб на основе размера сетки
         return set({ zoom: newZoom });
     },
-    resetZoom: () => set({ zoom: 2 }), // Сброс к начальному масштабу 2x
+    resetZoom: () => {
+        const state = get();
+        const gridStepPixels = mmToPixels(state.grid.stepMM);
+        const minGridSizePixels = 5; // Минимальный размер сетки в пикселях для видимости
+        const minZoom = Math.max(0.1, minGridSizePixels / gridStepPixels);
+        // Начальный масштаб должен быть не меньше минимального, но не больше 2x
+        const initialZoom = Math.max(minZoom, Math.min(2, minZoom * 2));
+        return set({ zoom: initialZoom });
+    },
     setZoom: (zoom) => {
         const state = get();
         const gridStepPixels = mmToPixels(state.grid.stepMM);

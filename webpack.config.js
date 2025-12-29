@@ -6,6 +6,9 @@ module.exports = {
     path: path.resolve(__dirname, 'admin/js'),
     filename: 'editor.bundle.js',
   },
+  optimization: {
+    minimize: false, // Отключаем минификацию для отладки
+  },
   module: {
     rules: [
       {
