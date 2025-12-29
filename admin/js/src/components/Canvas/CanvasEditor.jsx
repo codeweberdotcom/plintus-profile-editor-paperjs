@@ -40,7 +40,556 @@ function CanvasEditor() {
     const gridStepPixels = mmToPixels(grid.stepMM);
     const viewbox = useEditorStore((state) => state.viewbox);
     const zoom = useEditorStore((state) => state.zoom);
-    const { zoomIn, zoomOut, setZoom, resetZoom } = useEditorStore();
+    const { zoomIn, zoomOut, setZoom, resetZoom, toggleDimensionsVisible } = useEditorStore();
+
+    // Функция экспорта в PDF
+    const exportToPDF = () => {
+        if (!paperScopeRef.current || !canvasRef.current) {
+            alert('Canvas не готов для экспорта');
+            return;
+        }
+
+        try {
+            // Проверяем, что jsPDF загружен
+            if (typeof window.jspdf === 'undefined') {
+                alert('Библиотека jsPDF не загружена. Пожалуйста, обновите страницу.');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const scope = paperScopeRef.current;
+            scope.activate();
+            
+            // Получаем границы видимой области
+            const viewBounds = scope.view.bounds;
+            const viewSize = scope.view.viewSize;
+            const canvasWidth = viewSize.width || canvasRef.current.width;
+            const canvasHeight = viewSize.height || canvasRef.current.height;
+            
+            // Создаем SVG напрямую из элементов store (без сетки)
+            // Это гарантирует, что мы экспортируем только элементы чертежа
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svgElement = document.createElementNS(svgNS, 'svg');
+            
+            // Вычисляем границы всех элементов для правильного viewBox
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            const drawingElements = elements.filter(el => el.type === 'line' || el.type === 'arc' || el.type === 'fillet' || el.type === 'chamfer');
+            
+            drawingElements.forEach(el => {
+                if (el.type === 'line') {
+                    minX = Math.min(minX, el.start.x, el.end.x);
+                    minY = Math.min(minY, el.start.y, el.end.y);
+                    maxX = Math.max(maxX, el.start.x, el.end.x);
+                    maxY = Math.max(maxY, el.start.y, el.end.y);
+                } else if (el.type === 'arc') {
+                    const startAngleRad = ((el.startAngle || 0) * Math.PI) / 180;
+                    const endAngleRad = startAngleRad + ((el.angle || 90) * Math.PI) / 180;
+                    const startPoint = {
+                        x: el.center.x + el.radius * Math.cos(startAngleRad),
+                        y: el.center.y + el.radius * Math.sin(startAngleRad)
+                    };
+                    const endPoint = {
+                        x: el.center.x + el.radius * Math.cos(endAngleRad),
+                        y: el.center.y + el.radius * Math.sin(endAngleRad)
+                    };
+                    minX = Math.min(minX, el.center.x - el.radius, startPoint.x, endPoint.x);
+                    minY = Math.min(minY, el.center.y - el.radius, startPoint.y, endPoint.y);
+                    maxX = Math.max(maxX, el.center.x + el.radius, startPoint.x, endPoint.x);
+                    maxY = Math.max(maxY, el.center.y + el.radius, startPoint.y, endPoint.y);
+                } else if (el.type === 'fillet' && el.arcStartPoint && el.arcEndPoint && el.center) {
+                    minX = Math.min(minX, el.arcStartPoint.x, el.arcEndPoint.x, el.center.x - el.radius);
+                    minY = Math.min(minY, el.arcStartPoint.y, el.arcEndPoint.y, el.center.y - el.radius);
+                    maxX = Math.max(maxX, el.arcStartPoint.x, el.arcEndPoint.x, el.center.x + el.radius);
+                    maxY = Math.max(maxY, el.arcStartPoint.y, el.arcEndPoint.y, el.center.y + el.radius);
+                } else if (el.type === 'chamfer' && el.start && el.end) {
+                    minX = Math.min(minX, el.start.x, el.end.x);
+                    minY = Math.min(minY, el.start.y, el.end.y);
+                    maxX = Math.max(maxX, el.start.x, el.end.x);
+                    maxY = Math.max(maxY, el.start.y, el.end.y);
+                }
+            });
+            
+            // Если нет элементов, используем viewBounds
+            if (!isFinite(minX)) {
+                minX = viewBounds.x;
+                minY = viewBounds.y;
+                maxX = viewBounds.x + viewBounds.width;
+                maxY = viewBounds.y + viewBounds.height;
+            }
+            
+            const svgWidth = maxX - minX;
+            const svgHeight = maxY - minY;
+            const padding = 20; // Отступ вокруг чертежа
+            
+            // Устанавливаем размеры и viewBox
+            svgElement.setAttribute('width', svgWidth + padding * 2);
+            svgElement.setAttribute('height', svgHeight + padding * 2);
+            svgElement.setAttribute('viewBox', `${minX - padding} ${minY - padding} ${svgWidth + padding * 2} ${svgHeight + padding * 2}`);
+            
+            // Создаем группу для элементов чертежа
+            const drawingGroup = document.createElementNS(svgNS, 'g');
+            drawingGroup.setAttribute('id', 'drawing-elements');
+            
+            // Добавляем элементы в SVG
+            drawingElements.forEach(el => {
+                if (el.type === 'line') {
+                    const line = document.createElementNS(svgNS, 'line');
+                    line.setAttribute('x1', el.start.x);
+                    line.setAttribute('y1', el.start.y);
+                    line.setAttribute('x2', el.end.x);
+                    line.setAttribute('y2', el.end.y);
+                    line.setAttribute('stroke', '#000');
+                    line.setAttribute('stroke-width', '2');
+                    line.setAttribute('fill', 'none');
+                    drawingGroup.appendChild(line);
+                } else if (el.type === 'arc') {
+                    const center = el.center;
+                    const radius = el.radius;
+                    const startAngle = el.startAngle || 0;
+                    const angle = el.angle || 90;
+                    const startAngleRad = (startAngle * Math.PI) / 180;
+                    const endAngleRad = startAngleRad + (angle * Math.PI) / 180;
+                    
+                    const startPoint = {
+                        x: center.x + radius * Math.cos(startAngleRad),
+                        y: center.y + radius * Math.sin(startAngleRad)
+                    };
+                    const endPoint = {
+                        x: center.x + radius * Math.cos(endAngleRad),
+                        y: center.y + radius * Math.sin(endAngleRad)
+                    };
+                    
+                    const largeArcFlag = angle > 180 ? 1 : 0;
+                    const sweepFlag = 1; // По часовой стрелке
+                    
+                    const path = document.createElementNS(svgNS, 'path');
+                    const d = `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${endPoint.x} ${endPoint.y}`;
+                    path.setAttribute('d', d);
+                    path.setAttribute('stroke', '#000');
+                    path.setAttribute('stroke-width', '2');
+                    path.setAttribute('fill', 'none');
+                    drawingGroup.appendChild(path);
+                } else if (el.type === 'fillet') {
+                    // Проверяем разные варианты структуры fillet
+                    let startPoint, endPoint, center, radius, arcAngle;
+                    
+                    if (el.arcStartPoint && el.arcEndPoint && el.arc && el.arc.center && el.arc.radius) {
+                        // Используем arcStartPoint, arcEndPoint и arc.center, arc.radius
+                        startPoint = el.arcStartPoint;
+                        endPoint = el.arcEndPoint;
+                        center = el.arc.center;
+                        radius = el.arc.radius;
+                        arcAngle = el.arc.angle || 0; // Угол дуги в градусах
+                    } else if (el.arcStartPoint && el.arcEndPoint && el.center && el.radius) {
+                        // Вариант 1: свойства напрямую (для обратной совместимости)
+                        startPoint = el.arcStartPoint;
+                        endPoint = el.arcEndPoint;
+                        center = el.center;
+                        radius = el.radius;
+                        arcAngle = el.arc?.angle || 0;
+                    } else if (el.connection && el.line1Direction && el.line2Direction && (el.radius || el.arc?.radius)) {
+                        // Вариант 3: вычисляем из connection и directions
+                        center = el.center || el.arc?.center;
+                        radius = el.radius || el.arc?.radius;
+                        
+                        if (center && radius) {
+                            // Вычисляем точки арки из directions
+                            startPoint = {
+                                x: el.connection.x + el.line1Direction.x * radius,
+                                y: el.connection.y + el.line1Direction.y * radius
+                            };
+                            endPoint = {
+                                x: el.connection.x + el.line2Direction.x * radius,
+                                y: el.connection.y + el.line2Direction.y * radius
+                            };
+                            arcAngle = el.arc?.angle || 0;
+                        }
+                    }
+                    
+                    if (startPoint && endPoint && center && radius) {
+                        // Вычисляем углы от центра к точкам
+                        const startAngleRad = Math.atan2(startPoint.y - center.y, startPoint.x - center.x);
+                        const endAngleRad = Math.atan2(endPoint.y - center.y, endPoint.x - center.x);
+                        
+                        // Вычисляем разность углов и нормализуем к [-π, π]
+                        let angleDiff = endAngleRad - startAngleRad;
+                        if (angleDiff > Math.PI) {
+                            angleDiff -= 2 * Math.PI;
+                        } else if (angleDiff < -Math.PI) {
+                            angleDiff += 2 * Math.PI;
+                        }
+                        
+                        // Определяем направление дуги: если angleDiff > 0, то по часовой стрелке (sweepFlag = 1)
+                        // Если angleDiff < 0, то против часовой стрелки (sweepFlag = 0)
+                        const sweepFlag = angleDiff >= 0 ? 1 : 0;
+                        
+                        // Вычисляем абсолютный угол дуги
+                        const absAngle = Math.abs(angleDiff) * (180 / Math.PI);
+                        const largeArcFlag = absAngle > 180 ? 1 : 0;
+                        
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:172',message:'fillet arc calculation',data:{startAngleRad:startAngleRad*(180/Math.PI),endAngleRad:endAngleRad*(180/Math.PI),angleDiff:angleDiff*(180/Math.PI),absAngle,sweepFlag,largeArcFlag,arcAngle},timestamp:Date.now(),sessionId:'debug-session',runId:'fillet-export',hypothesisId:'F'})}).catch(()=>{});
+                        // #endregion
+                        
+                        const path = document.createElementNS(svgNS, 'path');
+                        const d = `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${endPoint.x} ${endPoint.y}`;
+                        path.setAttribute('d', d);
+                        path.setAttribute('stroke', '#000');
+                        path.setAttribute('stroke-width', '2');
+                        path.setAttribute('fill', 'none');
+                        drawingGroup.appendChild(path);
+                    } else {
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:172',message:'fillet skipped - missing properties',data:{hasStartPoint:!!startPoint,hasEndPoint:!!endPoint,hasCenter:!!center,hasRadius:!!radius},timestamp:Date.now(),sessionId:'debug-session',runId:'fillet-export',hypothesisId:'F'})}).catch(()=>{});
+                        // #endregion
+                    }
+                } else if (el.type === 'chamfer') {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:193',message:'processing chamfer for export',data:{hasStart:!!el.start,hasEnd:!!el.end,keys:Object.keys(el)},timestamp:Date.now(),sessionId:'debug-session',runId:'chamfer-export',hypothesisId:'C'})}).catch(()=>{});
+                    // #endregion
+                    
+                    if (el.start && el.end) {
+                        const line = document.createElementNS(svgNS, 'line');
+                        line.setAttribute('x1', el.start.x);
+                        line.setAttribute('y1', el.start.y);
+                        line.setAttribute('x2', el.end.x);
+                        line.setAttribute('y2', el.end.y);
+                        line.setAttribute('stroke', '#000');
+                        line.setAttribute('stroke-width', '2');
+                        line.setAttribute('fill', 'none');
+                        drawingGroup.appendChild(line);
+                    } else {
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:193',message:'chamfer skipped - missing start or end',data:{hasStart:!!el.start,hasEnd:!!el.end},timestamp:Date.now(),sessionId:'debug-session',runId:'chamfer-export',hypothesisId:'C'})}).catch(()=>{});
+                        // #endregion
+                    }
+                }
+            });
+            
+            // Добавляем тексты и сноски (dimensions), если они включены
+            if (dimensionsVisible) {
+                // Сноски для линий
+                drawingElements.filter(el => el.type === 'line').forEach(el => {
+                    const midX = (el.start.x + el.end.x) / 2;
+                    const midY = (el.start.y + el.end.y) / 2;
+                    const leaderLength = 15;
+                    const horizontalLength = 40;
+                    const angle = 45;
+                    const angleRad = (angle * Math.PI) / 180;
+                    
+                    const leaderStartX = midX;
+                    const leaderStartY = midY;
+                    const leaderEndX = midX + Math.cos(angleRad) * leaderLength;
+                    const leaderEndY = midY - Math.sin(angleRad) * leaderLength;
+                    
+                    const horizontalStartX = leaderEndX;
+                    const horizontalStartY = leaderEndY;
+                    const horizontalEndX = leaderEndX + horizontalLength;
+                    const horizontalEndY = leaderEndY;
+                    
+                    const textY = horizontalStartY - 3;
+                    const lengthText = formatLengthMM(el.length || distance(el.start, el.end));
+                    const strokeColor = '#999';
+                    const lineWidth = 0.5;
+                    
+                    // Косая линия
+                    const leaderLine = document.createElementNS(svgNS, 'line');
+                    leaderLine.setAttribute('x1', leaderStartX);
+                    leaderLine.setAttribute('y1', leaderStartY);
+                    leaderLine.setAttribute('x2', leaderEndX);
+                    leaderLine.setAttribute('y2', leaderEndY);
+                    leaderLine.setAttribute('stroke', strokeColor);
+                    leaderLine.setAttribute('stroke-width', lineWidth);
+                    drawingGroup.appendChild(leaderLine);
+                    
+                    // Горизонтальная линия
+                    const horizontalLine = document.createElementNS(svgNS, 'line');
+                    horizontalLine.setAttribute('x1', horizontalStartX);
+                    horizontalLine.setAttribute('y1', horizontalStartY);
+                    horizontalLine.setAttribute('x2', horizontalEndX);
+                    horizontalLine.setAttribute('y2', horizontalEndY);
+                    horizontalLine.setAttribute('stroke', strokeColor);
+                    horizontalLine.setAttribute('stroke-width', lineWidth);
+                    drawingGroup.appendChild(horizontalLine);
+                    
+                    // Текст (приблизительная ширина текста)
+                    const textWidth = lengthText.length * 6; // Примерная ширина
+                    const textX = horizontalEndX - textWidth;
+                    const text = document.createElementNS(svgNS, 'text');
+                    text.setAttribute('x', textX);
+                    text.setAttribute('y', textY);
+                    text.setAttribute('fill', strokeColor);
+                    text.setAttribute('font-size', '11');
+                    text.setAttribute('font-family', 'Arial, sans-serif');
+                    text.textContent = lengthText;
+                    drawingGroup.appendChild(text);
+                });
+                
+                // Сноски для fillet
+                drawingElements.filter(el => el.type === 'fillet' && el.arcStartPoint && el.arcEndPoint && (el.arc?.center || el.center) && (el.arc?.radius || el.radius)).forEach(el => {
+                    const arcCenter = el.arc?.center || el.center;
+                    const arcRadius = el.arc?.radius || el.radius;
+                    const leaderLength = 15;
+                    const horizontalLength = 40;
+                    
+                    // Вычисляем середину дуги
+                    const arcPointX = (el.arcStartPoint.x + el.arcEndPoint.x) / 2;
+                    const arcPointY = (el.arcStartPoint.y + el.arcEndPoint.y) / 2;
+                    
+                    // Проектируем на дугу
+                    const dx = arcPointX - arcCenter.x;
+                    const dy = arcPointY - arcCenter.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    let finalArcPointX = arcPointX;
+                    let finalArcPointY = arcPointY;
+                    if (dist > 0.0001) {
+                        finalArcPointX = arcCenter.x + (dx / dist) * arcRadius;
+                        finalArcPointY = arcCenter.y + (dy / dist) * arcRadius;
+                    }
+                    
+                    // Направление "снаружи" угла
+                    let outsideDir = { x: Math.cos(45 * Math.PI / 180), y: -Math.sin(45 * Math.PI / 180) };
+                    if (el.line1Direction && el.line2Direction) {
+                        const bisectorUnnormalized = {
+                            x: el.line1Direction.x + el.line2Direction.x,
+                            y: el.line1Direction.y + el.line2Direction.y
+                        };
+                        const bisectorLength = Math.sqrt(bisectorUnnormalized.x * bisectorUnnormalized.x + bisectorUnnormalized.y * bisectorUnnormalized.y);
+                        if (bisectorLength > 0.0001) {
+                            const bisectorDir = { x: bisectorUnnormalized.x / bisectorLength, y: bisectorUnnormalized.y / bisectorLength };
+                            outsideDir = { x: -bisectorDir.x, y: -bisectorDir.y };
+                        }
+                    }
+                    
+                    // Линия от центра к точке на дуге (удвоенная длина)
+                    // Вычисляем направление от центра к точке на дуге
+                    const dirX = finalArcPointX - arcCenter.x;
+                    const dirY = finalArcPointY - arcCenter.y;
+                    const dirLength = Math.sqrt(dirX * dirX + dirY * dirY);
+                    
+                    // Продолжаем линию в 2 раза дальше от центра
+                    const extendedPointX = arcCenter.x + (dirX / dirLength) * (arcRadius * 2);
+                    const extendedPointY = arcCenter.y + (dirY / dirLength) * (arcRadius * 2);
+                    
+                    const leaderLine1 = document.createElementNS(svgNS, 'line');
+                    leaderLine1.setAttribute('x1', arcCenter.x);
+                    leaderLine1.setAttribute('y1', arcCenter.y);
+                    leaderLine1.setAttribute('x2', extendedPointX);
+                    leaderLine1.setAttribute('y2', extendedPointY);
+                    leaderLine1.setAttribute('stroke', '#999');
+                    leaderLine1.setAttribute('stroke-width', '0.5');
+                    drawingGroup.appendChild(leaderLine1);
+                    
+                    // Косая линия от точки на дуге (теперь от extendedPoint)
+                    const diagonalEndX = extendedPointX + outsideDir.x * leaderLength;
+                    const diagonalEndY = extendedPointY + outsideDir.y * leaderLength;
+                    const leaderLine2 = document.createElementNS(svgNS, 'line');
+                    leaderLine2.setAttribute('x1', extendedPointX);
+                    leaderLine2.setAttribute('y1', extendedPointY);
+                    leaderLine2.setAttribute('x2', diagonalEndX);
+                    leaderLine2.setAttribute('y2', diagonalEndY);
+                    leaderLine2.setAttribute('stroke', '#999');
+                    leaderLine2.setAttribute('stroke-width', '0.5');
+                    drawingGroup.appendChild(leaderLine2);
+                    
+                    // Горизонтальная линия
+                    const horizontalStartX = diagonalEndX;
+                    const horizontalStartY = diagonalEndY;
+                    const horizontalEndX = diagonalEndX + horizontalLength;
+                    const horizontalEndY = diagonalEndY;
+                    const horizontalLine = document.createElementNS(svgNS, 'line');
+                    horizontalLine.setAttribute('x1', horizontalStartX);
+                    horizontalLine.setAttribute('y1', horizontalStartY);
+                    horizontalLine.setAttribute('x2', horizontalEndX);
+                    horizontalLine.setAttribute('y2', horizontalEndY);
+                    horizontalLine.setAttribute('stroke', '#999');
+                    horizontalLine.setAttribute('stroke-width', '0.5');
+                    drawingGroup.appendChild(horizontalLine);
+                    
+                    // Текст
+                    const radiusMM = Math.round(pixelsToMM(arcRadius));
+                    const textContent = `R${radiusMM} мм`;
+                    const textY = horizontalStartY - 3;
+                    const textWidth = textContent.length * 6;
+                    const textX = horizontalEndX - textWidth;
+                    const text = document.createElementNS(svgNS, 'text');
+                    text.setAttribute('x', textX);
+                    text.setAttribute('y', textY);
+                    text.setAttribute('fill', '#999');
+                    text.setAttribute('font-size', '11');
+                    text.setAttribute('font-family', 'Arial, sans-serif');
+                    text.textContent = textContent;
+                    drawingGroup.appendChild(text);
+                });
+                
+                // Сноски для chamfer
+                drawingElements.filter(el => el.type === 'chamfer' && el.start && el.end).forEach(el => {
+                    const midPoint = {
+                        x: (el.start.x + el.end.x) / 2,
+                        y: (el.start.y + el.end.y) / 2
+                    };
+                    const depth = distance(el.start, el.end);
+                    const depthMM = Math.round(pixelsToMM(depth));
+                    const textContent = `${depthMM} мм`;
+                    const leaderLength = 15;
+                    const horizontalLength = 40;
+                    const angle = 45;
+                    const angleRad = (angle * Math.PI) / 180;
+                    
+                    const leaderEndX = midPoint.x + Math.cos(angleRad) * leaderLength;
+                    const leaderEndY = midPoint.y - Math.sin(angleRad) * leaderLength;
+                    
+                    const horizontalStartX = leaderEndX;
+                    const horizontalStartY = leaderEndY;
+                    const horizontalEndX = leaderEndX + horizontalLength;
+                    const horizontalEndY = leaderEndY;
+                    
+                    const textY = horizontalStartY - 3;
+                    
+                    // Косая линия
+                    const leaderLine = document.createElementNS(svgNS, 'line');
+                    leaderLine.setAttribute('x1', midPoint.x);
+                    leaderLine.setAttribute('y1', midPoint.y);
+                    leaderLine.setAttribute('x2', leaderEndX);
+                    leaderLine.setAttribute('y2', leaderEndY);
+                    leaderLine.setAttribute('stroke', '#999');
+                    leaderLine.setAttribute('stroke-width', '0.5');
+                    drawingGroup.appendChild(leaderLine);
+                    
+                    // Горизонтальная линия
+                    const horizontalLine = document.createElementNS(svgNS, 'line');
+                    horizontalLine.setAttribute('x1', horizontalStartX);
+                    horizontalLine.setAttribute('y1', horizontalStartY);
+                    horizontalLine.setAttribute('x2', horizontalEndX);
+                    horizontalLine.setAttribute('y2', horizontalEndY);
+                    horizontalLine.setAttribute('stroke', '#999');
+                    horizontalLine.setAttribute('stroke-width', '0.5');
+                    drawingGroup.appendChild(horizontalLine);
+                    
+                    // Текст
+                    const textWidth = textContent.length * 6;
+                    const textX = horizontalEndX - textWidth;
+                    const text = document.createElementNS(svgNS, 'text');
+                    text.setAttribute('x', textX);
+                    text.setAttribute('y', textY);
+                    text.setAttribute('fill', '#999');
+                    text.setAttribute('font-size', '11');
+                    text.setAttribute('font-family', 'Arial, sans-serif');
+                    text.textContent = textContent;
+                    drawingGroup.appendChild(text);
+                });
+            }
+            
+            svgElement.appendChild(drawingGroup);
+            
+            // #region agent log
+            const elementsCount = drawingElements.length;
+            const linesCount = drawingElements.filter(el => el.type === 'line').length;
+            const arcsCount = drawingElements.filter(el => el.type === 'arc').length;
+            const filletsCount = drawingElements.filter(el => el.type === 'fillet').length;
+            const chamfersCount = drawingElements.filter(el => el.type === 'chamfer').length;
+            const dimensionsCount = dimensionsVisible ? (linesCount + filletsCount + chamfersCount) : 0;
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:110',message:'SVG created from store elements',data:{elementsCount,linesCount,arcsCount,filletsCount,chamfersCount,dimensionsCount,dimensionsVisible,svgWidth,svgHeight,minX,minY,maxX,maxY},timestamp:Date.now(),sessionId:'debug-session',runId:'svg-created-from-store',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
+            
+            // Получаем SVG как строку
+            const finalSvgString = new XMLSerializer().serializeToString(svgElement);
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:155',message:'final SVG prepared',data:{finalSvgLength:finalSvgString.length,finalSvgPreview:finalSvgString.substring(0,300)},timestamp:Date.now(),sessionId:'debug-session',runId:'final-svg-prepared',hypothesisId:'J'})}).catch(()=>{});
+            // #endregion
+            
+            // Вычисляем соотношение сторон
+            const svgAspectRatio = svgWidth / svgHeight;
+            
+            // Создаем PDF в формате A4
+            const pdf = new jsPDF({
+                orientation: canvasWidth > canvasHeight ? 'landscape' : 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+            
+            // Получаем размеры страницы A4
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            
+            // Определяем максимальный размер для размещения на странице (с учетом отступов)
+            const maxWidth = pageWidth - 20; // 10 мм отступы с каждой стороны
+            const maxHeight = pageHeight - 20;
+            
+            // Вычисляем размеры SVG с сохранением пропорций
+            let svgPdfWidth = maxWidth;
+            let svgPdfHeight = svgPdfWidth / svgAspectRatio;
+            
+            // Если высота больше максимальной, масштабируем по высоте
+            if (svgPdfHeight > maxHeight) {
+                svgPdfHeight = maxHeight;
+                svgPdfWidth = svgPdfHeight * svgAspectRatio;
+            }
+            
+            // Центрируем SVG на странице
+            const offsetX = (pageWidth - svgPdfWidth) / 2;
+            const offsetY = (pageHeight - svgPdfHeight) / 2;
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:165',message:'before adding SVG to PDF',data:{offsetX,offsetY,svgPdfWidth,svgPdfHeight,pageWidth,pageHeight,finalSvgLength:finalSvgString.length},timestamp:Date.now(),sessionId:'debug-session',runId:'before-pdf-svg-add',hypothesisId:'F'})}).catch(()=>{});
+            // #endregion
+            
+            // Конвертируем SVG в canvas с высоким разрешением для сохранения качества
+            // Это создаст растровое изображение (PNG) с высоким разрешением
+            const svgBlob = new Blob([finalSvgString], { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+            
+            // Создаем изображение из SVG
+            const img = new Image();
+            img.onload = () => {
+                // Создаем canvas с высоким разрешением для сохранения качества
+                const scale = 3; // Высокое разрешение для лучшего качества
+                const exportCanvas = document.createElement('canvas');
+                // Используем размеры изображения для canvas
+                exportCanvas.width = img.width * scale;
+                exportCanvas.height = img.height * scale;
+                const ctx = exportCanvas.getContext('2d');
+                
+                // Устанавливаем белый фон
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+                
+                // Масштабируем и рисуем SVG на canvas
+                ctx.scale(scale, scale);
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+                
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:165',message:'SVG image loaded',data:{imgWidth:img.width,imgHeight:img.height,canvasWidth:exportCanvas.width,canvasHeight:exportCanvas.height,scale},timestamp:Date.now(),sessionId:'debug-session',runId:'svg-image-loaded',hypothesisId:'K'})}).catch(()=>{});
+                // #endregion
+                
+                // Конвертируем canvas в изображение с высоким разрешением
+                const imgData = exportCanvas.toDataURL('image/png', 1.0);
+                
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:165',message:'SVG converted to high-res PNG image',data:{imgDataLength:imgData.length,scale,canvasWidth:exportCanvas.width,canvasHeight:exportCanvas.height},timestamp:Date.now(),sessionId:'debug-session',runId:'svg-to-image',hypothesisId:'G'})}).catch(()=>{});
+                // #endregion
+                
+                // Добавляем изображение в PDF
+                pdf.addImage(imgData, 'PNG', offsetX, offsetY, svgPdfWidth, svgPdfHeight, undefined, 'FAST');
+                URL.revokeObjectURL(svgUrl);
+                
+                // Сохраняем PDF
+                const profileId = window.plintusEditor?.profileId || 'profile';
+                pdf.save(`profile-${profileId}.pdf`);
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(svgUrl);
+                console.error('Ошибка загрузки SVG');
+                alert('Ошибка при экспорте SVG. Попробуйте еще раз.');
+            };
+            img.src = svgUrl;
+            return; // Выходим, так как сохранение произойдет в onload
+        } catch (error) {
+            console.error('Ошибка при экспорте в PDF:', error);
+            alert('Ошибка при экспорте в PDF: ' + error.message);
+        }
+    };
     const prevZoomRef = useRef(zoom); // Для отслеживания изменений zoom
 
     // Обновление размеров контейнера
@@ -625,17 +1174,17 @@ function CanvasEditor() {
                         const dist = distance(point, el.center);
                         return Math.abs(dist - el.radius) < 10;
                     }
-                    if (el.type === 'fillet') {
-                        // Проверяем, находится ли точка на дуге fillet
-                        const distToArcCenter = distance(point, el.arc.center);
-                        const onArc = Math.abs(distToArcCenter - el.arc.radius) < 10;
-                        // Также проверяем линии, входящие в fillet
-                        const line1 = elements.find(l => l.id === el.line1Id);
-                        const line2 = elements.find(l => l.id === el.line2Id);
-                        const onLine1 = line1 && line1.type === 'line' ? isPointOnLine(point, line1.start, line1.end, 10) : false;
-                        const onLine2 = line2 && line2.type === 'line' ? isPointOnLine(point, line2.start, line2.end, 10) : false;
-                        return onLine1 || onLine2 || onArc;
-                    }
+                        if (el.type === 'fillet') {
+                            // Проверяем, находится ли точка на дуге fillet
+                            const distToArcCenter = distance(point, el.arc.center);
+                            const onArc = Math.abs(distToArcCenter - el.arc.radius) < 10;
+                            // Также проверяем линии, входящие в fillet
+                            const line1 = elements.find(l => l.id === el.line1Id);
+                            const line2 = elements.find(l => l.id === el.line2Id);
+                            const onLine1 = line1 && line1.type === 'line' ? isPointOnLine(point, line1.start, line1.end, 10) : false;
+                            const onLine2 = line2 && line2.type === 'line' ? isPointOnLine(point, line2.start, line2.end, 10) : false;
+                            return onLine1 || onLine2 || onArc;
+                        }
                     if (el.type === 'chamfer') {
                         // Проверяем, находится ли точка на линии chamfer
                         const onChamfer = isPointOnLine(point, el.start, el.end, 10);
@@ -645,7 +1194,7 @@ function CanvasEditor() {
                         const onLine1 = line1 && line1.type === 'line' ? isPointOnLine(point, line1.start, line1.end, 10) : false;
                         const onLine2 = line2 && line2.type === 'line' ? isPointOnLine(point, line2.start, line2.end, 10) : false;
                         return onLine1 || onLine2 || onChamfer;
-                    }
+                        }
                     return false;
                 });
                 
@@ -732,18 +1281,18 @@ function CanvasEditor() {
                         
                         if (line1FromStore && line2FromStore && line1FromStore.type === 'line' && line2FromStore.type === 'line') {
                             if (selectedTool === 'arc') {
+                            // #region agent log
+                            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'calling createFilletAtCorner',data:{line1Id:line1FromStore.id,line2Id:line2FromStore.id},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
+                            // #endregion
+                            try {
+                                createFilletAtCorner(line1FromStore, line2FromStore);
                                 // #region agent log
-                                fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'calling createFilletAtCorner',data:{line1Id:line1FromStore.id,line2Id:line2FromStore.id},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
+                                fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'createFilletAtCorner completed',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
                                 // #endregion
-                                try {
-                                    createFilletAtCorner(line1FromStore, line2FromStore);
-                                    // #region agent log
-                                    fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'createFilletAtCorner completed',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
-                                    // #endregion
-                                } catch (error) {
-                                    // #region agent log
-                                    fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'createFilletAtCorner error',data:{error:error.message,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
-                                    // #endregion
+                            } catch (error) {
+                                // #region agent log
+                                fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasEditor.jsx:363',message:'createFilletAtCorner error',data:{error:error.message,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'click-debug',hypothesisId:'B'})}).catch(()=>{});
+                                // #endregion
                                 }
                             } else if (selectedTool === 'chamfer') {
                                 try {
@@ -883,11 +1432,6 @@ function CanvasEditor() {
                     }
                     return false;
                 });
-                
-                // Меняем курсор на "not-allowed" (терка) если элемент найден
-                if (canvasRef.current) {
-                    canvasRef.current.style.cursor = hoveredElement ? 'not-allowed' : 'default';
-                }
             }
             
             setHoveredPoint(hoveredPointInfo);
@@ -1195,6 +1739,7 @@ function CanvasEditor() {
         const handleMouseLeave = () => {
             setHoveredPoint(null);
             canvas.style.cursor = 'default';
+            // Не убираем delete-cursor здесь, так как он управляется через selectedTool
         };
 
         canvas.addEventListener('mouseleave', handleMouseLeave);
@@ -2278,21 +2823,21 @@ function CanvasEditor() {
                     const lineWidth = 0.5;
                     
         // Линия от середины фаски
-        const leaderLength = 15;
-        const horizontalLength = 40;
-        const angle = 45;
-        const angleRad = (angle * Math.PI) / 180;
-
+                    const leaderLength = 15;
+                    const horizontalLength = 40;
+                    const angle = 45;
+                    const angleRad = (angle * Math.PI) / 180;
+                    
         const leaderEndX = midPoint.x + Math.cos(angleRad) * leaderLength;
         const leaderEndY = midPoint.y - Math.sin(angleRad) * leaderLength;
-
-        const horizontalStartX = leaderEndX;
-        const horizontalStartY = leaderEndY;
-        const horizontalEndX = leaderEndX + horizontalLength;
-        const horizontalEndY = leaderEndY;
-
-        const textY = horizontalStartY - 3;
-
+                    
+                    const horizontalStartX = leaderEndX;
+                    const horizontalStartY = leaderEndY;
+                    const horizontalEndX = leaderEndX + horizontalLength;
+                    const horizontalEndY = leaderEndY;
+                    
+                    const textY = horizontalStartY - 3;
+                    
         const leaderLine = new paper.Path.Line({
             from: [midPoint.x, midPoint.y],
             to: [leaderEndX, leaderEndY],
@@ -2442,6 +2987,64 @@ function CanvasEditor() {
                 id="plintus-paperjs-canvas"
                 style={{ width: '100%', height: '100%', display: 'block' }}
             />
+            <div className="canvas-controls">
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        exportToPDF();
+                    }}
+                    title="Экспорт в PDF"
+                >
+                    <i className="fs-28 uil uil-file-export"></i>
+                </button>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        resetZoom();
+                    }}
+                    title="Сброс масштаба"
+                >
+                    <i className="fs-28 uil uil-expand-arrows-alt"></i>
+                </button>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        zoomOut();
+                    }}
+                    title="Уменьшить"
+                >
+                    <i className="fs-28 uil uil-minus-circle"></i>
+                </button>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        zoomIn();
+                    }}
+                    title="Приблизить"
+                >
+                    <i className="fs-28 uil uil-plus-circle"></i>
+                </button>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleDimensionsVisible();
+                    }}
+                    className={dimensionsVisible ? 'active' : ''}
+                    title="Show/Hide Dimensions"
+                >
+                    <i className="fs-28 uil uil-ruler"></i>
+                </button>
+            </div>
         </div>
     );
 }

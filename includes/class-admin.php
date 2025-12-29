@@ -52,11 +52,29 @@ class Admin {
             true
         );
 
+        // Загружаем jsPDF для экспорта в PDF
+        wp_enqueue_script(
+            'jspdf',
+            'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+            [],
+            '2.5.1',
+            true
+        );
+
+        // Загружаем svg2pdf для векторного экспорта
+        wp_enqueue_script(
+            'svg2pdf',
+            'https://cdn.jsdelivr.net/npm/svg2pdf.js@2.6.0/dist/svg2pdf.umd.min.js',
+            ['jspdf'],
+            '2.6.0',
+            true
+        );
+
         // Загружаем React редактор
         wp_enqueue_script(
             'plintus-profile-editor-paperjs',
             Plugin::get_url() . 'admin/js/editor.bundle.js',
-            ['react', 'react-dom', 'paper'],
+            ['react', 'react-dom', 'paper', 'jspdf', 'svg2pdf'],
             Plugin::get_version(),
             true
         );
@@ -74,6 +92,7 @@ class Admin {
             'nonce' => wp_create_nonce('wp_rest'),
             'profileId' => $post->ID,
             'postId' => $post->ID,
+            'restUrl' => rest_url(),
             'strings' => array(
                 'lineTool' => __('Line Tool', 'plintus-profile-editor-paperjs'),
                 'arcTool' => __('Arc Tool', 'plintus-profile-editor-paperjs'),

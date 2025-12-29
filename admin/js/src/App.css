@@ -6,6 +6,21 @@
     background: #f5f5f5;
 }
 
+.plintus-editor-header {
+    padding: 15px 20px;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+}
+
+.plintus-editor-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+}
+
 .plintus-editor-content {
     flex: 1;
     position: relative;

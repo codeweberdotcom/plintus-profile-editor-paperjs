@@ -6,7 +6,7 @@ class API {
         register_rest_route('plintus-paperjs/v1', '/profiles/(?P<id>\d+)/data', [
             'methods' => 'GET',
             'callback' => [$this, 'get_profile_data'],
-            'permission_callback' => [$this, 'check_permission'],
+            'permission_callback' => '__return_true', // Разрешаем чтение всем
         ]);
 
         register_rest_route('plintus-paperjs/v1', '/profiles/(?P<id>\d+)/data', [
@@ -18,11 +18,36 @@ class API {
         register_rest_route('plintus-paperjs/v1', '/profiles/(?P<id>\d+)/export', [
             'methods' => 'GET',
             'callback' => [$this, 'export_profile'],
-            'permission_callback' => [$this, 'check_permission'],
+            'permission_callback' => '__return_true', // Разрешаем экспорт всем
         ]);
     }
 
     public function check_permission($request) {
+        $method = $request->get_method();
+        
+        // Для GET запросов (чтение) разрешаем всем
+        if ($method === 'GET') {
+            return true;
+        }
+        
+        // Для POST запросов (сохранение) требуем права редактирования
+        // Проверяем nonce из заголовка
+        $nonce = $request->get_header('X-WP-Nonce');
+        if (!$nonce) {
+            // Пробуем получить из параметров запроса
+            $nonce = $request->get_param('_wpnonce');
+        }
+        
+        // Если nonce передан, проверяем его
+        if ($nonce) {
+            $nonce_valid = wp_verify_nonce($nonce, 'wp_rest');
+            if ($nonce_valid && current_user_can('edit_posts')) {
+                return true;
+            }
+        }
+        
+        // Если nonce не передан или неверный, проверяем только права (для админки)
+        // Это позволяет работать в админке без nonce (через cookies)
         return current_user_can('edit_posts');
     }
 

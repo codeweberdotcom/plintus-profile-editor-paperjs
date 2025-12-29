@@ -104,15 +104,12 @@ function PropertiesPanel({ elements }) {
                     </div>
                 </div>
 
-                <div className="properties-summary">
-                    <h4>
-                        {elements.length === 0 
-                            ? 'Свойства' 
-                            : `Свойства (${elements.length} выбрано)`}
-                    </h4>
-                    <div className="properties-elements-list">
-                        <h4 style={{ marginTop: 0 }}>Выбранные элементы:</h4>
-                        {elements.length > 0 ? (
+                {elements.length > 0 && (
+                    <div className="properties-summary">
+                        <h4>
+                            {`Свойства (${elements.length} выбрано)`}
+                        </h4>
+                        <div className="properties-elements-list">
                             <ul className="properties-elements-list-items">
                                 {elements.map((element, index) => {
                                     const elementLength = getElementLength(element);
@@ -126,11 +123,9 @@ function PropertiesPanel({ elements }) {
                                     );
                                 })}
                             </ul>
-                        ) : (
-                            <p className="properties-empty-state">Элементы не выбраны</p>
-                        )}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {lineElements.length > 0 && (
                     <LineProperties elements={lineElements} />

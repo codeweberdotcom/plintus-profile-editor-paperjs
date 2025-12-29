@@ -4,8 +4,9 @@ import App from './App';
 
 // Инициализация для админки (старый контейнер)
 const adminContainer = document.getElementById('plintus-profile-editor-paperjs-root');
-if (adminContainer) {
+if (adminContainer && !adminContainer.dataset.initialized) {
     try {
+        adminContainer.dataset.initialized = 'true';
         const root = ReactDOM.createRoot(adminContainer);
         root.render(<App />);
     } catch (error) {
@@ -34,6 +35,12 @@ function initFrontendEditor(containerId) {
     window.plintusEditor = editorData;
 
     try {
+        // Проверяем, не создан ли уже root для этого контейнера
+        if (container.dataset.initialized === 'true') {
+            return; // Уже инициализирован
+        }
+        
+        container.dataset.initialized = 'true';
         const root = ReactDOM.createRoot(container);
         root.render(<App />);
         

@@ -344,6 +344,47 @@ ___CSS_LOADER_EXPORT___.push([module.id, `.canvas-editor {
     /* Размеры устанавливаются через атрибуты width и height, не через CSS */
 }
 
+.canvas-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000;
+}
+
+.canvas-controls button {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #ddd;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.canvas-controls button:hover {
+    background: #f0f0f0;
+    border-color: #0073aa;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.canvas-controls button.active {
+    background: #0073aa;
+    color: #fff;
+    border-color: #0073aa;
+}
+
+.canvas-controls button i {
+    font-size: 18px;
+}
+
 `, ""]);
 // Exports
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
@@ -945,6 +986,21 @@ ___CSS_LOADER_EXPORT___.push([module.id, `.plintus-editor {
     background: #f5f5f5;
 }
 
+.plintus-editor-header {
+    padding: 15px 20px;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+}
+
+.plintus-editor-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+}
+
 .plintus-editor-content {
     flex: 1;
     position: relative;
@@ -961,106 +1017,6 @@ ___CSS_LOADER_EXPORT___.push([module.id, `.plintus-editor {
     position: relative;
     min-width: 0; /* Allows flex item to shrink below its content size */
 }
-
-
-
-
-`, ""]);
-// Exports
-/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
-
-
-/***/ },
-
-/***/ 925
-(module, __webpack_exports__, __webpack_require__) {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   A: () => (__WEBPACK_DEFAULT_EXPORT__)
-/* harmony export */ });
-/* harmony import */ var _node_modules_css_loader_dist_runtime_noSourceMaps_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(601);
-/* harmony import */ var _node_modules_css_loader_dist_runtime_noSourceMaps_js__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_node_modules_css_loader_dist_runtime_noSourceMaps_js__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(314);
-/* harmony import */ var _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_1__);
-// Imports
-
-
-var ___CSS_LOADER_EXPORT___ = _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_1___default()((_node_modules_css_loader_dist_runtime_noSourceMaps_js__WEBPACK_IMPORTED_MODULE_0___default()));
-// Module
-___CSS_LOADER_EXPORT___.push([module.id, `.plintus-toolbar {
-    display: flex;
-    align-items: center;
-    padding: 10px;
-    background: #fff;
-    border-bottom: 1px solid #ddd;
-    justify-content: space-between;
-}
-
-.plintus-toolbar-section {
-    display: flex;
-    gap: 0;
-    align-items: center;
-}
-
-.plintus-toolbar-section-right {
-    margin-left: auto;
-}
-
-.plintus-tool-button {
-    width: 36px;
-    height: 36px;
-    border: 1px solid #ddd;
-    background: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    margin: 0;
-    transition: all 0.2s;
-}
-
-.plintus-tool-button:hover {
-    background: #f0f0f0;
-    border-color: #0073aa;
-}
-
-.plintus-tool-button.active {
-    background: #0073aa;
-    color: #fff;
-    border-color: #0073aa;
-}
-
-.plintus-toolbar button {
-    width: 36px;
-    height: 36px;
-    border: 1px solid #ddd;
-    background: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    margin: 0;
-    transition: all 0.2s;
-}
-
-.plintus-toolbar button:hover {
-    background: #f0f0f0;
-    border-color: #0073aa;
-}
-
-.plintus-toolbar button.active {
-    background: #0073aa;
-    color: #fff;
-    border-color: #0073aa;
-}
-
-.plintus-toolbar button i {
-    font-size: 18px;
-}
-
-
 
 
 
@@ -2505,7 +2461,759 @@ function CanvasEditor_CanvasEditor() {
     zoomIn = _useEditorStore2.zoomIn,
     zoomOut = _useEditorStore2.zoomOut,
     setZoom = _useEditorStore2.setZoom,
-    resetZoom = _useEditorStore2.resetZoom;
+    resetZoom = _useEditorStore2.resetZoom,
+    toggleDimensionsVisible = _useEditorStore2.toggleDimensionsVisible;
+
+  // Функция экспорта в PDF
+  var exportToPDF = function exportToPDF() {
+    if (!paperScopeRef.current || !canvasRef.current) {
+      alert('Canvas не готов для экспорта');
+      return;
+    }
+    try {
+      // Проверяем, что jsPDF загружен
+      if (typeof window.jspdf === 'undefined') {
+        alert('Библиотека jsPDF не загружена. Пожалуйста, обновите страницу.');
+        return;
+      }
+      var jsPDF = window.jspdf.jsPDF;
+      var scope = paperScopeRef.current;
+      scope.activate();
+
+      // Получаем границы видимой области
+      var viewBounds = scope.view.bounds;
+      var viewSize = scope.view.viewSize;
+      var canvasWidth = viewSize.width || canvasRef.current.width;
+      var canvasHeight = viewSize.height || canvasRef.current.height;
+
+      // Создаем SVG напрямую из элементов store (без сетки)
+      // Это гарантирует, что мы экспортируем только элементы чертежа
+      var svgNS = 'http://www.w3.org/2000/svg';
+      var svgElement = document.createElementNS(svgNS, 'svg');
+
+      // Вычисляем границы всех элементов для правильного viewBox
+      var minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
+      var drawingElements = elements.filter(function (el) {
+        return el.type === 'line' || el.type === 'arc' || el.type === 'fillet' || el.type === 'chamfer';
+      });
+      drawingElements.forEach(function (el) {
+        if (el.type === 'line') {
+          minX = Math.min(minX, el.start.x, el.end.x);
+          minY = Math.min(minY, el.start.y, el.end.y);
+          maxX = Math.max(maxX, el.start.x, el.end.x);
+          maxY = Math.max(maxY, el.start.y, el.end.y);
+        } else if (el.type === 'arc') {
+          var startAngleRad = (el.startAngle || 0) * Math.PI / 180;
+          var endAngleRad = startAngleRad + (el.angle || 90) * Math.PI / 180;
+          var startPoint = {
+            x: el.center.x + el.radius * Math.cos(startAngleRad),
+            y: el.center.y + el.radius * Math.sin(startAngleRad)
+          };
+          var endPoint = {
+            x: el.center.x + el.radius * Math.cos(endAngleRad),
+            y: el.center.y + el.radius * Math.sin(endAngleRad)
+          };
+          minX = Math.min(minX, el.center.x - el.radius, startPoint.x, endPoint.x);
+          minY = Math.min(minY, el.center.y - el.radius, startPoint.y, endPoint.y);
+          maxX = Math.max(maxX, el.center.x + el.radius, startPoint.x, endPoint.x);
+          maxY = Math.max(maxY, el.center.y + el.radius, startPoint.y, endPoint.y);
+        } else if (el.type === 'fillet' && el.arcStartPoint && el.arcEndPoint && el.center) {
+          minX = Math.min(minX, el.arcStartPoint.x, el.arcEndPoint.x, el.center.x - el.radius);
+          minY = Math.min(minY, el.arcStartPoint.y, el.arcEndPoint.y, el.center.y - el.radius);
+          maxX = Math.max(maxX, el.arcStartPoint.x, el.arcEndPoint.x, el.center.x + el.radius);
+          maxY = Math.max(maxY, el.arcStartPoint.y, el.arcEndPoint.y, el.center.y + el.radius);
+        } else if (el.type === 'chamfer' && el.start && el.end) {
+          minX = Math.min(minX, el.start.x, el.end.x);
+          minY = Math.min(minY, el.start.y, el.end.y);
+          maxX = Math.max(maxX, el.start.x, el.end.x);
+          maxY = Math.max(maxY, el.start.y, el.end.y);
+        }
+      });
+
+      // Если нет элементов, используем viewBounds
+      if (!isFinite(minX)) {
+        minX = viewBounds.x;
+        minY = viewBounds.y;
+        maxX = viewBounds.x + viewBounds.width;
+        maxY = viewBounds.y + viewBounds.height;
+      }
+      var svgWidth = maxX - minX;
+      var svgHeight = maxY - minY;
+      var padding = 20; // Отступ вокруг чертежа
+
+      // Устанавливаем размеры и viewBox
+      svgElement.setAttribute('width', svgWidth + padding * 2);
+      svgElement.setAttribute('height', svgHeight + padding * 2);
+      svgElement.setAttribute('viewBox', "".concat(minX - padding, " ").concat(minY - padding, " ").concat(svgWidth + padding * 2, " ").concat(svgHeight + padding * 2));
+
+      // Создаем группу для элементов чертежа
+      var drawingGroup = document.createElementNS(svgNS, 'g');
+      drawingGroup.setAttribute('id', 'drawing-elements');
+
+      // Добавляем элементы в SVG
+      drawingElements.forEach(function (el) {
+        if (el.type === 'line') {
+          var line = document.createElementNS(svgNS, 'line');
+          line.setAttribute('x1', el.start.x);
+          line.setAttribute('y1', el.start.y);
+          line.setAttribute('x2', el.end.x);
+          line.setAttribute('y2', el.end.y);
+          line.setAttribute('stroke', '#000');
+          line.setAttribute('stroke-width', '2');
+          line.setAttribute('fill', 'none');
+          drawingGroup.appendChild(line);
+        } else if (el.type === 'arc') {
+          var center = el.center;
+          var radius = el.radius;
+          var startAngle = el.startAngle || 0;
+          var angle = el.angle || 90;
+          var startAngleRad = startAngle * Math.PI / 180;
+          var endAngleRad = startAngleRad + angle * Math.PI / 180;
+          var startPoint = {
+            x: center.x + radius * Math.cos(startAngleRad),
+            y: center.y + radius * Math.sin(startAngleRad)
+          };
+          var endPoint = {
+            x: center.x + radius * Math.cos(endAngleRad),
+            y: center.y + radius * Math.sin(endAngleRad)
+          };
+          var largeArcFlag = angle > 180 ? 1 : 0;
+          var sweepFlag = 1; // По часовой стрелке
+
+          var path = document.createElementNS(svgNS, 'path');
+          var d = "M ".concat(startPoint.x, " ").concat(startPoint.y, " A ").concat(radius, " ").concat(radius, " 0 ").concat(largeArcFlag, " ").concat(sweepFlag, " ").concat(endPoint.x, " ").concat(endPoint.y);
+          path.setAttribute('d', d);
+          path.setAttribute('stroke', '#000');
+          path.setAttribute('stroke-width', '2');
+          path.setAttribute('fill', 'none');
+          drawingGroup.appendChild(path);
+        } else if (el.type === 'fillet') {
+          var _el$arc2;
+          // Проверяем разные варианты структуры fillet
+          var _startPoint, _endPoint, _center, _radius, arcAngle;
+          if (el.arcStartPoint && el.arcEndPoint && el.arc && el.arc.center && el.arc.radius) {
+            // Используем arcStartPoint, arcEndPoint и arc.center, arc.radius
+            _startPoint = el.arcStartPoint;
+            _endPoint = el.arcEndPoint;
+            _center = el.arc.center;
+            _radius = el.arc.radius;
+            arcAngle = el.arc.angle || 0; // Угол дуги в градусах
+          } else if (el.arcStartPoint && el.arcEndPoint && el.center && el.radius) {
+            var _el$arc;
+            // Вариант 1: свойства напрямую (для обратной совместимости)
+            _startPoint = el.arcStartPoint;
+            _endPoint = el.arcEndPoint;
+            _center = el.center;
+            _radius = el.radius;
+            arcAngle = ((_el$arc = el.arc) === null || _el$arc === void 0 ? void 0 : _el$arc.angle) || 0;
+          } else if (el.connection && el.line1Direction && el.line2Direction && (el.radius || (_el$arc2 = el.arc) !== null && _el$arc2 !== void 0 && _el$arc2.radius)) {
+            var _el$arc3, _el$arc4;
+            // Вариант 3: вычисляем из connection и directions
+            _center = el.center || ((_el$arc3 = el.arc) === null || _el$arc3 === void 0 ? void 0 : _el$arc3.center);
+            _radius = el.radius || ((_el$arc4 = el.arc) === null || _el$arc4 === void 0 ? void 0 : _el$arc4.radius);
+            if (_center && _radius) {
+              var _el$arc5;
+              // Вычисляем точки арки из directions
+              _startPoint = {
+                x: el.connection.x + el.line1Direction.x * _radius,
+                y: el.connection.y + el.line1Direction.y * _radius
+              };
+              _endPoint = {
+                x: el.connection.x + el.line2Direction.x * _radius,
+                y: el.connection.y + el.line2Direction.y * _radius
+              };
+              arcAngle = ((_el$arc5 = el.arc) === null || _el$arc5 === void 0 ? void 0 : _el$arc5.angle) || 0;
+            }
+          }
+          if (_startPoint && _endPoint && _center && _radius) {
+            // Вычисляем углы от центра к точкам
+            var _startAngleRad = Math.atan2(_startPoint.y - _center.y, _startPoint.x - _center.x);
+            var _endAngleRad = Math.atan2(_endPoint.y - _center.y, _endPoint.x - _center.x);
+
+            // Вычисляем разность углов и нормализуем к [-π, π]
+            var angleDiff = _endAngleRad - _startAngleRad;
+            if (angleDiff > Math.PI) {
+              angleDiff -= 2 * Math.PI;
+            } else if (angleDiff < -Math.PI) {
+              angleDiff += 2 * Math.PI;
+            }
+
+            // Определяем направление дуги: если angleDiff > 0, то по часовой стрелке (sweepFlag = 1)
+            // Если angleDiff < 0, то против часовой стрелки (sweepFlag = 0)
+            var _sweepFlag = angleDiff >= 0 ? 1 : 0;
+
+            // Вычисляем абсолютный угол дуги
+            var absAngle = Math.abs(angleDiff) * (180 / Math.PI);
+            var _largeArcFlag = absAngle > 180 ? 1 : 0;
+
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                location: 'CanvasEditor.jsx:172',
+                message: 'fillet arc calculation',
+                data: {
+                  startAngleRad: _startAngleRad * (180 / Math.PI),
+                  endAngleRad: _endAngleRad * (180 / Math.PI),
+                  angleDiff: angleDiff * (180 / Math.PI),
+                  absAngle: absAngle,
+                  sweepFlag: _sweepFlag,
+                  largeArcFlag: _largeArcFlag,
+                  arcAngle: arcAngle
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'fillet-export',
+                hypothesisId: 'F'
+              })
+            })["catch"](function () {});
+            // #endregion
+
+            var _path = document.createElementNS(svgNS, 'path');
+            var _d = "M ".concat(_startPoint.x, " ").concat(_startPoint.y, " A ").concat(_radius, " ").concat(_radius, " 0 ").concat(_largeArcFlag, " ").concat(_sweepFlag, " ").concat(_endPoint.x, " ").concat(_endPoint.y);
+            _path.setAttribute('d', _d);
+            _path.setAttribute('stroke', '#000');
+            _path.setAttribute('stroke-width', '2');
+            _path.setAttribute('fill', 'none');
+            drawingGroup.appendChild(_path);
+          } else {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                location: 'CanvasEditor.jsx:172',
+                message: 'fillet skipped - missing properties',
+                data: {
+                  hasStartPoint: !!_startPoint,
+                  hasEndPoint: !!_endPoint,
+                  hasCenter: !!_center,
+                  hasRadius: !!_radius
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'fillet-export',
+                hypothesisId: 'F'
+              })
+            })["catch"](function () {});
+            // #endregion
+          }
+        } else if (el.type === 'chamfer') {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              location: 'CanvasEditor.jsx:193',
+              message: 'processing chamfer for export',
+              data: {
+                hasStart: !!el.start,
+                hasEnd: !!el.end,
+                keys: Object.keys(el)
+              },
+              timestamp: Date.now(),
+              sessionId: 'debug-session',
+              runId: 'chamfer-export',
+              hypothesisId: 'C'
+            })
+          })["catch"](function () {});
+          // #endregion
+
+          if (el.start && el.end) {
+            var _line = document.createElementNS(svgNS, 'line');
+            _line.setAttribute('x1', el.start.x);
+            _line.setAttribute('y1', el.start.y);
+            _line.setAttribute('x2', el.end.x);
+            _line.setAttribute('y2', el.end.y);
+            _line.setAttribute('stroke', '#000');
+            _line.setAttribute('stroke-width', '2');
+            _line.setAttribute('fill', 'none');
+            drawingGroup.appendChild(_line);
+          } else {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                location: 'CanvasEditor.jsx:193',
+                message: 'chamfer skipped - missing start or end',
+                data: {
+                  hasStart: !!el.start,
+                  hasEnd: !!el.end
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'chamfer-export',
+                hypothesisId: 'C'
+              })
+            })["catch"](function () {});
+            // #endregion
+          }
+        }
+      });
+
+      // Добавляем тексты и сноски (dimensions), если они включены
+      if (dimensionsVisible) {
+        // Сноски для линий
+        drawingElements.filter(function (el) {
+          return el.type === 'line';
+        }).forEach(function (el) {
+          var midX = (el.start.x + el.end.x) / 2;
+          var midY = (el.start.y + el.end.y) / 2;
+          var leaderLength = 15;
+          var horizontalLength = 40;
+          var angle = 45;
+          var angleRad = angle * Math.PI / 180;
+          var leaderStartX = midX;
+          var leaderStartY = midY;
+          var leaderEndX = midX + Math.cos(angleRad) * leaderLength;
+          var leaderEndY = midY - Math.sin(angleRad) * leaderLength;
+          var horizontalStartX = leaderEndX;
+          var horizontalStartY = leaderEndY;
+          var horizontalEndX = leaderEndX + horizontalLength;
+          var horizontalEndY = leaderEndY;
+          var textY = horizontalStartY - 3;
+          var lengthText = formatLengthMM(el.length || distance(el.start, el.end));
+          var strokeColor = '#999';
+          var lineWidth = 0.5;
+
+          // Косая линия
+          var leaderLine = document.createElementNS(svgNS, 'line');
+          leaderLine.setAttribute('x1', leaderStartX);
+          leaderLine.setAttribute('y1', leaderStartY);
+          leaderLine.setAttribute('x2', leaderEndX);
+          leaderLine.setAttribute('y2', leaderEndY);
+          leaderLine.setAttribute('stroke', strokeColor);
+          leaderLine.setAttribute('stroke-width', lineWidth);
+          drawingGroup.appendChild(leaderLine);
+
+          // Горизонтальная линия
+          var horizontalLine = document.createElementNS(svgNS, 'line');
+          horizontalLine.setAttribute('x1', horizontalStartX);
+          horizontalLine.setAttribute('y1', horizontalStartY);
+          horizontalLine.setAttribute('x2', horizontalEndX);
+          horizontalLine.setAttribute('y2', horizontalEndY);
+          horizontalLine.setAttribute('stroke', strokeColor);
+          horizontalLine.setAttribute('stroke-width', lineWidth);
+          drawingGroup.appendChild(horizontalLine);
+
+          // Текст (приблизительная ширина текста)
+          var textWidth = lengthText.length * 6; // Примерная ширина
+          var textX = horizontalEndX - textWidth;
+          var text = document.createElementNS(svgNS, 'text');
+          text.setAttribute('x', textX);
+          text.setAttribute('y', textY);
+          text.setAttribute('fill', strokeColor);
+          text.setAttribute('font-size', '11');
+          text.setAttribute('font-family', 'Arial, sans-serif');
+          text.textContent = lengthText;
+          drawingGroup.appendChild(text);
+        });
+
+        // Сноски для fillet
+        drawingElements.filter(function (el) {
+          var _el$arc6, _el$arc7;
+          return el.type === 'fillet' && el.arcStartPoint && el.arcEndPoint && (((_el$arc6 = el.arc) === null || _el$arc6 === void 0 ? void 0 : _el$arc6.center) || el.center) && (((_el$arc7 = el.arc) === null || _el$arc7 === void 0 ? void 0 : _el$arc7.radius) || el.radius);
+        }).forEach(function (el) {
+          var _el$arc8, _el$arc9;
+          var arcCenter = ((_el$arc8 = el.arc) === null || _el$arc8 === void 0 ? void 0 : _el$arc8.center) || el.center;
+          var arcRadius = ((_el$arc9 = el.arc) === null || _el$arc9 === void 0 ? void 0 : _el$arc9.radius) || el.radius;
+          var leaderLength = 15;
+          var horizontalLength = 40;
+
+          // Вычисляем середину дуги
+          var arcPointX = (el.arcStartPoint.x + el.arcEndPoint.x) / 2;
+          var arcPointY = (el.arcStartPoint.y + el.arcEndPoint.y) / 2;
+
+          // Проектируем на дугу
+          var dx = arcPointX - arcCenter.x;
+          var dy = arcPointY - arcCenter.y;
+          var dist = Math.sqrt(dx * dx + dy * dy);
+          var finalArcPointX = arcPointX;
+          var finalArcPointY = arcPointY;
+          if (dist > 0.0001) {
+            finalArcPointX = arcCenter.x + dx / dist * arcRadius;
+            finalArcPointY = arcCenter.y + dy / dist * arcRadius;
+          }
+
+          // Направление "снаружи" угла
+          var outsideDir = {
+            x: Math.cos(45 * Math.PI / 180),
+            y: -Math.sin(45 * Math.PI / 180)
+          };
+          if (el.line1Direction && el.line2Direction) {
+            var bisectorUnnormalized = {
+              x: el.line1Direction.x + el.line2Direction.x,
+              y: el.line1Direction.y + el.line2Direction.y
+            };
+            var bisectorLength = Math.sqrt(bisectorUnnormalized.x * bisectorUnnormalized.x + bisectorUnnormalized.y * bisectorUnnormalized.y);
+            if (bisectorLength > 0.0001) {
+              var bisectorDir = {
+                x: bisectorUnnormalized.x / bisectorLength,
+                y: bisectorUnnormalized.y / bisectorLength
+              };
+              outsideDir = {
+                x: -bisectorDir.x,
+                y: -bisectorDir.y
+              };
+            }
+          }
+
+          // Линия от центра к точке на дуге (удвоенная длина)
+          // Вычисляем направление от центра к точке на дуге
+          var dirX = finalArcPointX - arcCenter.x;
+          var dirY = finalArcPointY - arcCenter.y;
+          var dirLength = Math.sqrt(dirX * dirX + dirY * dirY);
+
+          // Продолжаем линию в 2 раза дальше от центра
+          var extendedPointX = arcCenter.x + dirX / dirLength * (arcRadius * 2);
+          var extendedPointY = arcCenter.y + dirY / dirLength * (arcRadius * 2);
+          var leaderLine1 = document.createElementNS(svgNS, 'line');
+          leaderLine1.setAttribute('x1', arcCenter.x);
+          leaderLine1.setAttribute('y1', arcCenter.y);
+          leaderLine1.setAttribute('x2', extendedPointX);
+          leaderLine1.setAttribute('y2', extendedPointY);
+          leaderLine1.setAttribute('stroke', '#999');
+          leaderLine1.setAttribute('stroke-width', '0.5');
+          drawingGroup.appendChild(leaderLine1);
+
+          // Косая линия от точки на дуге (теперь от extendedPoint)
+          var diagonalEndX = extendedPointX + outsideDir.x * leaderLength;
+          var diagonalEndY = extendedPointY + outsideDir.y * leaderLength;
+          var leaderLine2 = document.createElementNS(svgNS, 'line');
+          leaderLine2.setAttribute('x1', extendedPointX);
+          leaderLine2.setAttribute('y1', extendedPointY);
+          leaderLine2.setAttribute('x2', diagonalEndX);
+          leaderLine2.setAttribute('y2', diagonalEndY);
+          leaderLine2.setAttribute('stroke', '#999');
+          leaderLine2.setAttribute('stroke-width', '0.5');
+          drawingGroup.appendChild(leaderLine2);
+
+          // Горизонтальная линия
+          var horizontalStartX = diagonalEndX;
+          var horizontalStartY = diagonalEndY;
+          var horizontalEndX = diagonalEndX + horizontalLength;
+          var horizontalEndY = diagonalEndY;
+          var horizontalLine = document.createElementNS(svgNS, 'line');
+          horizontalLine.setAttribute('x1', horizontalStartX);
+          horizontalLine.setAttribute('y1', horizontalStartY);
+          horizontalLine.setAttribute('x2', horizontalEndX);
+          horizontalLine.setAttribute('y2', horizontalEndY);
+          horizontalLine.setAttribute('stroke', '#999');
+          horizontalLine.setAttribute('stroke-width', '0.5');
+          drawingGroup.appendChild(horizontalLine);
+
+          // Текст
+          var radiusMM = Math.round(pixelsToMM(arcRadius));
+          var textContent = "R".concat(radiusMM, " \u043C\u043C");
+          var textY = horizontalStartY - 3;
+          var textWidth = textContent.length * 6;
+          var textX = horizontalEndX - textWidth;
+          var text = document.createElementNS(svgNS, 'text');
+          text.setAttribute('x', textX);
+          text.setAttribute('y', textY);
+          text.setAttribute('fill', '#999');
+          text.setAttribute('font-size', '11');
+          text.setAttribute('font-family', 'Arial, sans-serif');
+          text.textContent = textContent;
+          drawingGroup.appendChild(text);
+        });
+
+        // Сноски для chamfer
+        drawingElements.filter(function (el) {
+          return el.type === 'chamfer' && el.start && el.end;
+        }).forEach(function (el) {
+          var midPoint = {
+            x: (el.start.x + el.end.x) / 2,
+            y: (el.start.y + el.end.y) / 2
+          };
+          var depth = distance(el.start, el.end);
+          var depthMM = Math.round(pixelsToMM(depth));
+          var textContent = "".concat(depthMM, " \u043C\u043C");
+          var leaderLength = 15;
+          var horizontalLength = 40;
+          var angle = 45;
+          var angleRad = angle * Math.PI / 180;
+          var leaderEndX = midPoint.x + Math.cos(angleRad) * leaderLength;
+          var leaderEndY = midPoint.y - Math.sin(angleRad) * leaderLength;
+          var horizontalStartX = leaderEndX;
+          var horizontalStartY = leaderEndY;
+          var horizontalEndX = leaderEndX + horizontalLength;
+          var horizontalEndY = leaderEndY;
+          var textY = horizontalStartY - 3;
+
+          // Косая линия
+          var leaderLine = document.createElementNS(svgNS, 'line');
+          leaderLine.setAttribute('x1', midPoint.x);
+          leaderLine.setAttribute('y1', midPoint.y);
+          leaderLine.setAttribute('x2', leaderEndX);
+          leaderLine.setAttribute('y2', leaderEndY);
+          leaderLine.setAttribute('stroke', '#999');
+          leaderLine.setAttribute('stroke-width', '0.5');
+          drawingGroup.appendChild(leaderLine);
+
+          // Горизонтальная линия
+          var horizontalLine = document.createElementNS(svgNS, 'line');
+          horizontalLine.setAttribute('x1', horizontalStartX);
+          horizontalLine.setAttribute('y1', horizontalStartY);
+          horizontalLine.setAttribute('x2', horizontalEndX);
+          horizontalLine.setAttribute('y2', horizontalEndY);
+          horizontalLine.setAttribute('stroke', '#999');
+          horizontalLine.setAttribute('stroke-width', '0.5');
+          drawingGroup.appendChild(horizontalLine);
+
+          // Текст
+          var textWidth = textContent.length * 6;
+          var textX = horizontalEndX - textWidth;
+          var text = document.createElementNS(svgNS, 'text');
+          text.setAttribute('x', textX);
+          text.setAttribute('y', textY);
+          text.setAttribute('fill', '#999');
+          text.setAttribute('font-size', '11');
+          text.setAttribute('font-family', 'Arial, sans-serif');
+          text.textContent = textContent;
+          drawingGroup.appendChild(text);
+        });
+      }
+      svgElement.appendChild(drawingGroup);
+
+      // #region agent log
+      var elementsCount = drawingElements.length;
+      var linesCount = drawingElements.filter(function (el) {
+        return el.type === 'line';
+      }).length;
+      var arcsCount = drawingElements.filter(function (el) {
+        return el.type === 'arc';
+      }).length;
+      var filletsCount = drawingElements.filter(function (el) {
+        return el.type === 'fillet';
+      }).length;
+      var chamfersCount = drawingElements.filter(function (el) {
+        return el.type === 'chamfer';
+      }).length;
+      var dimensionsCount = dimensionsVisible ? linesCount + filletsCount + chamfersCount : 0;
+      fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          location: 'CanvasEditor.jsx:110',
+          message: 'SVG created from store elements',
+          data: {
+            elementsCount: elementsCount,
+            linesCount: linesCount,
+            arcsCount: arcsCount,
+            filletsCount: filletsCount,
+            chamfersCount: chamfersCount,
+            dimensionsCount: dimensionsCount,
+            dimensionsVisible: dimensionsVisible,
+            svgWidth: svgWidth,
+            svgHeight: svgHeight,
+            minX: minX,
+            minY: minY,
+            maxX: maxX,
+            maxY: maxY
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'svg-created-from-store',
+          hypothesisId: 'D'
+        })
+      })["catch"](function () {});
+      // #endregion
+
+      // Получаем SVG как строку
+      var finalSvgString = new XMLSerializer().serializeToString(svgElement);
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          location: 'CanvasEditor.jsx:155',
+          message: 'final SVG prepared',
+          data: {
+            finalSvgLength: finalSvgString.length,
+            finalSvgPreview: finalSvgString.substring(0, 300)
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'final-svg-prepared',
+          hypothesisId: 'J'
+        })
+      })["catch"](function () {});
+      // #endregion
+
+      // Вычисляем соотношение сторон
+      var svgAspectRatio = svgWidth / svgHeight;
+
+      // Создаем PDF в формате A4
+      var pdf = new jsPDF({
+        orientation: canvasWidth > canvasHeight ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Получаем размеры страницы A4
+      var pageWidth = pdf.internal.pageSize.getWidth();
+      var pageHeight = pdf.internal.pageSize.getHeight();
+
+      // Определяем максимальный размер для размещения на странице (с учетом отступов)
+      var maxWidth = pageWidth - 20; // 10 мм отступы с каждой стороны
+      var maxHeight = pageHeight - 20;
+
+      // Вычисляем размеры SVG с сохранением пропорций
+      var svgPdfWidth = maxWidth;
+      var svgPdfHeight = svgPdfWidth / svgAspectRatio;
+
+      // Если высота больше максимальной, масштабируем по высоте
+      if (svgPdfHeight > maxHeight) {
+        svgPdfHeight = maxHeight;
+        svgPdfWidth = svgPdfHeight * svgAspectRatio;
+      }
+
+      // Центрируем SVG на странице
+      var offsetX = (pageWidth - svgPdfWidth) / 2;
+      var offsetY = (pageHeight - svgPdfHeight) / 2;
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          location: 'CanvasEditor.jsx:165',
+          message: 'before adding SVG to PDF',
+          data: {
+            offsetX: offsetX,
+            offsetY: offsetY,
+            svgPdfWidth: svgPdfWidth,
+            svgPdfHeight: svgPdfHeight,
+            pageWidth: pageWidth,
+            pageHeight: pageHeight,
+            finalSvgLength: finalSvgString.length
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'before-pdf-svg-add',
+          hypothesisId: 'F'
+        })
+      })["catch"](function () {});
+      // #endregion
+
+      // Конвертируем SVG в canvas с высоким разрешением для сохранения качества
+      // Это создаст растровое изображение (PNG) с высоким разрешением
+      var svgBlob = new Blob([finalSvgString], {
+        type: 'image/svg+xml;charset=utf-8'
+      });
+      var svgUrl = URL.createObjectURL(svgBlob);
+
+      // Создаем изображение из SVG
+      var img = new Image();
+      img.onload = function () {
+        var _window$plintusEditor;
+        // Создаем canvas с высоким разрешением для сохранения качества
+        var scale = 3; // Высокое разрешение для лучшего качества
+        var exportCanvas = document.createElement('canvas');
+        // Используем размеры изображения для canvas
+        exportCanvas.width = img.width * scale;
+        exportCanvas.height = img.height * scale;
+        var ctx = exportCanvas.getContext('2d');
+
+        // Устанавливаем белый фон
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+        // Масштабируем и рисуем SVG на canvas
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0, img.width, img.height);
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            location: 'CanvasEditor.jsx:165',
+            message: 'SVG image loaded',
+            data: {
+              imgWidth: img.width,
+              imgHeight: img.height,
+              canvasWidth: exportCanvas.width,
+              canvasHeight: exportCanvas.height,
+              scale: scale
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'svg-image-loaded',
+            hypothesisId: 'K'
+          })
+        })["catch"](function () {});
+        // #endregion
+
+        // Конвертируем canvas в изображение с высоким разрешением
+        var imgData = exportCanvas.toDataURL('image/png', 1.0);
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            location: 'CanvasEditor.jsx:165',
+            message: 'SVG converted to high-res PNG image',
+            data: {
+              imgDataLength: imgData.length,
+              scale: scale,
+              canvasWidth: exportCanvas.width,
+              canvasHeight: exportCanvas.height
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'svg-to-image',
+            hypothesisId: 'G'
+          })
+        })["catch"](function () {});
+        // #endregion
+
+        // Добавляем изображение в PDF
+        pdf.addImage(imgData, 'PNG', offsetX, offsetY, svgPdfWidth, svgPdfHeight, undefined, 'FAST');
+        URL.revokeObjectURL(svgUrl);
+
+        // Сохраняем PDF
+        var profileId = ((_window$plintusEditor = window.plintusEditor) === null || _window$plintusEditor === void 0 ? void 0 : _window$plintusEditor.profileId) || 'profile';
+        pdf.save("profile-".concat(profileId, ".pdf"));
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(svgUrl);
+        console.error('Ошибка загрузки SVG');
+        alert('Ошибка при экспорте SVG. Попробуйте еще раз.');
+      };
+      img.src = svgUrl;
+      return; // Выходим, так как сохранение произойдет в onload
+    } catch (error) {
+      console.error('Ошибка при экспорте в PDF:', error);
+      alert('Ошибка при экспорте в PDF: ' + error.message);
+    }
+  };
   var prevZoomRef = (0,external_React_.useRef)(zoom); // Для отслеживания изменений zoom
 
   // Обновление размеров контейнера
@@ -3158,14 +3866,14 @@ function CanvasEditor_CanvasEditor() {
             // Проверяем, находится ли точка на линии chamfer
             var onChamfer = isPointOnLine(point, el.start, el.end, 10);
             // Также проверяем линии, входящие в chamfer
-            var _line = elements.find(function (l) {
+            var _line2 = elements.find(function (l) {
               return l.id === el.line1Id;
             });
-            var _line2 = elements.find(function (l) {
+            var _line3 = elements.find(function (l) {
               return l.id === el.line2Id;
             });
-            var _onLine = _line && _line.type === 'line' ? isPointOnLine(point, _line.start, _line.end, 10) : false;
-            var _onLine2 = _line2 && _line2.type === 'line' ? isPointOnLine(point, _line2.start, _line2.end, 10) : false;
+            var _onLine = _line2 && _line2.type === 'line' ? isPointOnLine(point, _line2.start, _line2.end, 10) : false;
+            var _onLine2 = _line3 && _line3.type === 'line' ? isPointOnLine(point, _line3.start, _line3.end, 10) : false;
             return _onLine || _onLine2 || onChamfer;
           }
           return false;
@@ -3601,23 +4309,18 @@ function CanvasEditor_CanvasEditor() {
             // Проверяем, находится ли точка на линии chamfer
             var onChamfer = isPointOnLine(point, el.start, el.end, 10);
             // Также проверяем линии, входящие в chamfer
-            var _line3 = elements.find(function (l) {
+            var _line4 = elements.find(function (l) {
               return l.id === el.line1Id;
             });
-            var _line4 = elements.find(function (l) {
+            var _line5 = elements.find(function (l) {
               return l.id === el.line2Id;
             });
-            var _onLine3 = _line3 && _line3.type === 'line' ? isPointOnLine(point, _line3.start, _line3.end, 10) : false;
-            var _onLine4 = _line4 && _line4.type === 'line' ? isPointOnLine(point, _line4.start, _line4.end, 10) : false;
+            var _onLine3 = _line4 && _line4.type === 'line' ? isPointOnLine(point, _line4.start, _line4.end, 10) : false;
+            var _onLine4 = _line5 && _line5.type === 'line' ? isPointOnLine(point, _line5.start, _line5.end, 10) : false;
             return _onLine3 || _onLine4 || onChamfer;
           }
           return false;
         });
-
-        // Меняем курсор на "not-allowed" (терка) если элемент найден
-        if (canvasRef.current) {
-          canvasRef.current.style.cursor = hoveredElement ? 'not-allowed' : 'default';
-        }
       }
       setHoveredPoint(hoveredPointInfo);
 
@@ -3934,6 +4637,7 @@ function CanvasEditor_CanvasEditor() {
     var handleMouseLeave = function handleMouseLeave() {
       setHoveredPoint(null);
       canvas.style.cursor = 'default';
+      // Не убираем delete-cursor здесь, так как он управляется через selectedTool
     };
     canvas.addEventListener('mouseleave', handleMouseLeave);
     return function () {
@@ -3961,35 +4665,35 @@ function CanvasEditor_CanvasEditor() {
       gridLayer.addChild(line);
     }
     for (var y = 0; y <= height; y += stepPixels) {
-      var _line5 = new paper.Path.Line({
+      var _line6 = new paper.Path.Line({
         from: [0, y],
         to: [width, y],
         strokeColor: '#e0e0e0',
         strokeWidth: 0.5
       });
-      gridLayer.addChild(_line5);
+      gridLayer.addChild(_line6);
     }
 
     // Темные линии через 10 мм
     if (showMajorLines) {
       var majorStepPixels = mmToPixels(10);
       for (var _x = 0; _x <= width; _x += majorStepPixels) {
-        var _line6 = new paper.Path.Line({
+        var _line7 = new paper.Path.Line({
           from: [_x, 0],
           to: [_x, height],
           strokeColor: '#999',
           strokeWidth: 1
         });
-        gridLayer.addChild(_line6);
+        gridLayer.addChild(_line7);
       }
       for (var _y = 0; _y <= height; _y += majorStepPixels) {
-        var _line7 = new paper.Path.Line({
+        var _line8 = new paper.Path.Line({
           from: [0, _y],
           to: [width, _y],
           strokeColor: '#999',
           strokeWidth: 1
         });
-        gridLayer.addChild(_line7);
+        gridLayer.addChild(_line8);
       }
     }
     gridLayer.locked = true;
@@ -4368,10 +5072,10 @@ function CanvasEditor_CanvasEditor() {
       // #endregion
     } else {
       // Fallback: вычисляем точки от центра с заданным радиусом и углами
-      var _startAngleRad = arc.startAngle * Math.PI / 180;
-      var _endAngleRad = _startAngleRad + arc.angle * Math.PI / 180;
-      startPoint = new paper.Point(arc.center.x + arc.radius * Math.cos(_startAngleRad), arc.center.y + arc.radius * Math.sin(_startAngleRad));
-      endPoint = new paper.Point(arc.center.x + arc.radius * Math.cos(_endAngleRad), arc.center.y + arc.radius * Math.sin(_endAngleRad));
+      var _startAngleRad2 = arc.startAngle * Math.PI / 180;
+      var _endAngleRad2 = _startAngleRad2 + arc.angle * Math.PI / 180;
+      startPoint = new paper.Point(arc.center.x + arc.radius * Math.cos(_startAngleRad2), arc.center.y + arc.radius * Math.sin(_startAngleRad2));
+      endPoint = new paper.Point(arc.center.x + arc.radius * Math.cos(_endAngleRad2), arc.center.y + arc.radius * Math.sin(_endAngleRad2));
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/49b89e88-4674-4191-9133-bf7fd16c00a5', {
@@ -5684,136 +6388,19 @@ function CanvasEditor_CanvasEditor() {
       height: '100%',
       display: 'block'
     }
-  }));
-}
-/* harmony default export */ const components_Canvas_CanvasEditor = (CanvasEditor_CanvasEditor);
-// EXTERNAL MODULE: ./node_modules/css-loader/dist/cjs.js!./admin/js/src/components/Toolbar/Toolbar.css
-var Toolbar = __webpack_require__(925);
-;// ./admin/js/src/components/Toolbar/Toolbar.css
-
-      
-      
-      
-      
-      
-      
-      
-      
-      
-
-var Toolbar_options = {};
-
-Toolbar_options.styleTagTransform = (styleTagTransform_default());
-Toolbar_options.setAttributes = (setAttributesWithoutAttributes_default());
-
-      Toolbar_options.insert = insertBySelector_default().bind(null, "head");
-    
-Toolbar_options.domAPI = (styleDomAPI_default());
-Toolbar_options.insertStyleElement = (insertStyleElement_default());
-
-var Toolbar_update = injectStylesIntoStyleTag_default()(Toolbar/* default */.A, Toolbar_options);
-
-
-
-
-       /* harmony default export */ const Toolbar_Toolbar = (Toolbar/* default */.A && Toolbar/* default */.A.locals ? Toolbar/* default */.A.locals : undefined);
-
-;// ./admin/js/src/components/Toolbar/ToolButton.jsx
-
-
-var FilletIcon = function FilletIcon() {
-  return /*#__PURE__*/external_React_default().createElement("svg", {
-    width: "24",
-    height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg"
-  }, /*#__PURE__*/external_React_default().createElement("path", {
-    fillRule: "evenodd",
-    clipRule: "evenodd",
-    d: "M19.9993 16.1803V9C19.9993 6.32472 17.8982 4.14053 15.2561 4.00684L14.9993 4L7.81931 4.00029C7.6522 3.52063 7.36603 3.09125 6.98763 2.7524C6.60923 2.41355 6.15099 2.17633 5.65586 2.06297C5.16074 1.94961 4.64493 1.96382 4.15679 2.10427C3.66866 2.24472 3.22418 2.50682 2.86501 2.86598C2.50584 3.22515 2.24375 3.66963 2.1033 4.15777C1.96284 4.64591 1.94863 5.16171 2.062 5.65684C2.17536 6.15197 2.41258 6.61021 2.75143 6.98861C3.09027 7.36701 3.382 7.54729 3.99931 7.82029C4.61663 8.09329 5.5 8 5.99931 7.82029C6.49862 7.64058 6.79962 7.43018 7.11441 7.11539C7.42921 6.80059 7.66999 6.41969 7.81931 6.00029L14.9993 6C16.6562 6 17.9993 7.34315 17.9993 9V16.1803C17.5799 16.3296 17.199 16.5704 16.8842 16.8852C16.5694 17.2 16.3286 17.5809 16.1793 18.0003C16.0014 18.5 16.0122 19.5206 16.1793 20.0003C16.3464 20.48 16.6326 20.9093 17.011 21.2482C17.3894 21.587 17.8476 21.8242 18.3428 21.9376C18.8379 22.051 19.3537 22.0368 19.8418 21.8963C20.33 21.7559 20.7744 21.4938 21.1336 21.1346C21.4928 20.7754 21.7549 20.3309 21.8953 19.8428C22.0358 19.3547 22.05 18.8389 21.9366 18.3437C21.8233 17.8486 21.586 17.3904 21.2472 17.012C20.9084 16.6336 20.479 16.3474 19.9993 16.1803ZM5.55488 4.16882C5.39043 4.05894 5.19709 4.00029 4.99931 4.00029C4.7341 4.00029 4.47974 4.10565 4.29221 4.29318C4.10467 4.48072 3.99931 4.73507 3.99931 5.00029C3.99931 5.19807 4.05796 5.39141 4.16784 5.55586C4.27772 5.72031 4.4339 5.84848 4.61663 5.92417C4.79936 5.99986 5.00042 6.01966 5.1944 5.98107C5.38838 5.94249 5.56657 5.84725 5.70642 5.7074C5.84627 5.56754 5.94151 5.38936 5.9801 5.19538C6.01868 5.0014 5.99888 4.80033 5.92319 4.61761C5.8475 4.43488 5.71933 4.2787 5.55488 4.16882ZM18.4437 19.8318C18.6082 19.9416 18.8015 20.0003 18.9993 20.0003C19.2645 20.0003 19.5189 19.8949 19.7064 19.7074C19.894 19.5199 19.9993 19.2655 19.9993 19.0003C19.9993 18.8025 19.9407 18.6092 19.8308 18.4447C19.7209 18.2803 19.5647 18.1521 19.382 18.0764C19.1993 18.0007 18.9982 17.9809 18.8042 18.0195C18.6102 18.0581 18.4321 18.1533 18.2922 18.2932C18.1524 18.433 18.0571 18.6112 18.0185 18.8052C17.9799 18.9992 17.9997 19.2002 18.0754 19.383C18.1511 19.5657 18.2793 19.7219 18.4437 19.8318Z",
-    fill: "currentColor"
-  }));
-};
-var ChamferIcon = function ChamferIcon() {
-  return /*#__PURE__*/external_React_default().createElement("svg", {
-    width: "24",
-    height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg"
-  }, /*#__PURE__*/external_React_default().createElement("path", {
-    fillRule: "evenodd",
-    clipRule: "evenodd",
-    d: "M19.9993 16.1803V12L12.5 4L7.81931 4.00029C7.6522 3.52063 7.36603 3.09125 6.98763 2.7524C6.60923 2.41355 6.15099 2.17633 5.65586 2.06297C5.16074 1.94961 4.64493 1.96382 4.15679 2.10427C3.66866 2.24472 3.22418 2.50682 2.86501 2.86598C2.50584 3.22515 2.24375 3.66963 2.1033 4.15777C1.96284 4.64591 1.94863 5.16171 2.062 5.65684C2.17536 6.15197 2.41258 6.61021 2.75143 6.98861C3.09027 7.36701 3.382 7.54729 3.99931 7.82029C4.61663 8.09329 5.5 8 5.99931 7.82029C6.49862 7.64058 6.79962 7.43018 7.11441 7.11539C7.42921 6.80059 7.66999 6.41969 7.81931 6.00029L11.5 5.98107L17.9993 13V16.1803C17.5799 16.3296 17.199 16.5704 16.8842 16.8852C16.5694 17.2 16.3286 17.5809 16.1793 18.0003C16.0014 18.5 16.0122 19.5206 16.1793 20.0003C16.3464 20.48 16.6326 20.9093 17.011 21.2482C17.3894 21.587 17.8476 21.8242 18.3428 21.9376C18.8379 22.051 19.3537 22.0368 19.8418 21.8963C20.33 21.7559 20.7744 21.4938 21.1336 21.1346C21.4928 20.7754 21.7549 20.3309 21.8953 19.8428C22.0358 19.3547 22.05 18.8389 21.9366 18.3437C21.8233 17.8486 21.586 17.3904 21.2472 17.012C20.9084 16.6336 20.479 16.3474 19.9993 16.1803ZM5.55488 4.16882C5.39043 4.05894 5.19709 4.00029 4.99931 4.00029C4.7341 4.00029 4.47974 4.10565 4.29221 4.29318C4.10467 4.48072 3.99931 4.73507 3.99931 5.00029C3.99931 5.19807 4.05796 5.39141 4.16784 5.55586C4.27772 5.72031 4.4339 5.84848 4.61663 5.92417C4.79936 5.99986 5.00042 6.01966 5.1944 5.98107C5.38838 5.94249 5.56657 5.84725 5.70642 5.7074C5.84627 5.56754 5.94151 5.38936 5.9801 5.19538C6.01868 5.0014 5.99888 4.80033 5.92319 4.61761C5.8475 4.43488 5.71933 4.2787 5.55488 4.16882ZM18.4437 19.8318C18.6082 19.9416 18.8015 20.0003 18.9993 20.0003C19.2645 20.0003 19.5189 19.8949 19.7064 19.7074C19.894 19.5199 19.9993 19.2655 19.9993 19.0003C19.9993 18.8025 19.9407 18.6092 19.8308 18.4447C19.7209 18.2803 19.5647 18.1521 19.382 18.0764C19.1993 18.0007 18.9982 17.9809 18.8042 18.0195C18.6102 18.0581 18.4321 18.1533 18.2922 18.2932C18.1524 18.433 18.0571 18.6112 18.0185 18.8052C17.9799 18.9992 17.9997 19.2002 18.0754 19.383C18.1511 19.5657 18.2793 19.7219 18.4437 19.8318Z",
-    fill: "currentColor"
-  }));
-};
-function ToolButton(_ref) {
-  var tool = _ref.tool,
-    isActive = _ref.isActive,
-    onClick = _ref.onClick;
-  return /*#__PURE__*/external_React_default().createElement("button", {
-    type: "button",
-    className: "plintus-tool-button ".concat(isActive ? 'active' : ''),
-    onClick: onClick,
-    title: tool.label
-  }, tool.id === 'arc' ? /*#__PURE__*/external_React_default().createElement(FilletIcon, null) : tool.id === 'chamfer' ? /*#__PURE__*/external_React_default().createElement(ChamferIcon, null) : /*#__PURE__*/external_React_default().createElement("i", {
-    className: "fs-28 uil ".concat(tool.icon)
-  }));
-}
-/* harmony default export */ const Toolbar_ToolButton = (ToolButton);
-;// ./admin/js/src/components/Toolbar/Toolbar.jsx
-
-
-
-
-function Toolbar_Toolbar_Toolbar() {
-  var _useEditorStore = useEditorStore(),
-    selectedTool = _useEditorStore.selectedTool,
-    setSelectedTool = _useEditorStore.setSelectedTool,
-    dimensionsVisible = _useEditorStore.dimensionsVisible,
-    toggleDimensionsVisible = _useEditorStore.toggleDimensionsVisible,
-    zoomIn = _useEditorStore.zoomIn,
-    zoomOut = _useEditorStore.zoomOut,
-    resetZoom = _useEditorStore.resetZoom;
-  var tools = [{
-    id: 'line',
-    label: 'Рисование',
-    icon: 'uil-edit-alt'
-  }, {
-    id: 'select',
-    label: 'Редактировать',
-    icon: 'uil-vector-square'
-  }, {
-    id: 'arc',
-    label: 'Скругление',
-    icon: 'uil-circle'
-  }, {
-    id: 'chamfer',
-    label: 'Фаска',
-    icon: 'uil-angle-double-down'
-  }, {
-    id: 'delete',
-    label: 'Удаление',
-    icon: 'uil-trash-alt'
-  }];
-  return /*#__PURE__*/external_React_default().createElement("div", {
-    className: "plintus-toolbar"
-  }, /*#__PURE__*/external_React_default().createElement("div", {
-    className: "plintus-toolbar-section"
-  }, tools.map(function (tool) {
-    return /*#__PURE__*/external_React_default().createElement(Toolbar_ToolButton, {
-      key: tool.id,
-      tool: tool,
-      isActive: selectedTool === tool.id,
-      onClick: function onClick() {
-        return setSelectedTool(tool.id);
-      }
-    });
-  })), /*#__PURE__*/external_React_default().createElement("div", {
-    className: "plintus-toolbar-section plintus-toolbar-section-right"
+  }), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "canvas-controls"
   }, /*#__PURE__*/external_React_default().createElement("button", {
+    type: "button",
+    onClick: function onClick(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      exportToPDF();
+    },
+    title: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 \u0432 PDF"
+  }, /*#__PURE__*/external_React_default().createElement("i", {
+    className: "fs-28 uil uil-file-export"
+  })), /*#__PURE__*/external_React_default().createElement("button", {
     type: "button",
     onClick: function onClick(e) {
       e.preventDefault();
@@ -5856,7 +6443,7 @@ function Toolbar_Toolbar_Toolbar() {
     className: "fs-28 uil uil-ruler"
   }))));
 }
-/* harmony default export */ const components_Toolbar_Toolbar = (Toolbar_Toolbar_Toolbar);
+/* harmony default export */ const components_Canvas_CanvasEditor = (CanvasEditor_CanvasEditor);
 // EXTERNAL MODULE: ./node_modules/css-loader/dist/cjs.js!./admin/js/src/components/Toolbar/VerticalToolbar.css
 var VerticalToolbar = __webpack_require__(47);
 ;// ./admin/js/src/components/Toolbar/VerticalToolbar.css
@@ -5892,7 +6479,7 @@ var VerticalToolbar_update = injectStylesIntoStyleTag_default()(VerticalToolbar/
 
 
 
-var VerticalToolbar_FilletIcon = function FilletIcon() {
+var FilletIcon = function FilletIcon() {
   return /*#__PURE__*/external_React_default().createElement("svg", {
     width: "24",
     height: "24",
@@ -5906,7 +6493,7 @@ var VerticalToolbar_FilletIcon = function FilletIcon() {
     fill: "currentColor"
   }));
 };
-var VerticalToolbar_ChamferIcon = function ChamferIcon() {
+var ChamferIcon = function ChamferIcon() {
   return /*#__PURE__*/external_React_default().createElement("svg", {
     width: "24",
     height: "24",
@@ -5958,9 +6545,9 @@ function VerticalToolbar_VerticalToolbar() {
       title: tool.label
     }, tool.id === 'arc' ? /*#__PURE__*/external_React_default().createElement("div", {
       className: "py-2"
-    }, /*#__PURE__*/external_React_default().createElement(VerticalToolbar_FilletIcon, null)) : tool.id === 'chamfer' ? /*#__PURE__*/external_React_default().createElement("div", {
+    }, /*#__PURE__*/external_React_default().createElement(FilletIcon, null)) : tool.id === 'chamfer' ? /*#__PURE__*/external_React_default().createElement("div", {
       className: "py-2"
-    }, /*#__PURE__*/external_React_default().createElement(VerticalToolbar_ChamferIcon, null)) : /*#__PURE__*/external_React_default().createElement("i", {
+    }, /*#__PURE__*/external_React_default().createElement(ChamferIcon, null)) : /*#__PURE__*/external_React_default().createElement("i", {
       className: "fs-28 uil ".concat(tool.icon)
     }), /*#__PURE__*/external_React_default().createElement("span", {
       className: "plintus-vertical-tool-button-text"
@@ -6338,15 +6925,11 @@ function PropertiesPanel_PropertiesPanel(_ref) {
     className: "summary-label"
   }, "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0441\u043A\u043E\u0441\u043E\u0432:"), /*#__PURE__*/external_React_default().createElement("span", {
     className: "summary-value"
-  }, chamfersCount))), /*#__PURE__*/external_React_default().createElement("div", {
+  }, chamfersCount))), elements.length > 0 && /*#__PURE__*/external_React_default().createElement("div", {
     className: "properties-summary"
-  }, /*#__PURE__*/external_React_default().createElement("h4", null, elements.length === 0 ? 'Свойства' : "\u0421\u0432\u043E\u0439\u0441\u0442\u0432\u0430 (".concat(elements.length, " \u0432\u044B\u0431\u0440\u0430\u043D\u043E)")), /*#__PURE__*/external_React_default().createElement("div", {
+  }, /*#__PURE__*/external_React_default().createElement("h4", null, "\u0421\u0432\u043E\u0439\u0441\u0442\u0432\u0430 (".concat(elements.length, " \u0432\u044B\u0431\u0440\u0430\u043D\u043E)")), /*#__PURE__*/external_React_default().createElement("div", {
     className: "properties-elements-list"
-  }, /*#__PURE__*/external_React_default().createElement("h4", {
-    style: {
-      marginTop: 0
-    }
-  }, "\u0412\u044B\u0431\u0440\u0430\u043D\u043D\u044B\u0435 \u044D\u043B\u0435\u043C\u0435\u043D\u0442\u044B:"), elements.length > 0 ? /*#__PURE__*/external_React_default().createElement("ul", {
+  }, /*#__PURE__*/external_React_default().createElement("ul", {
     className: "properties-elements-list-items"
   }, elements.map(function (element, index) {
     var elementLength = getElementLength(element);
@@ -6361,9 +6944,7 @@ function PropertiesPanel_PropertiesPanel(_ref) {
     }, "#", index + 1), /*#__PURE__*/external_React_default().createElement("span", {
       className: "element-length"
     }, lengthText));
-  })) : /*#__PURE__*/external_React_default().createElement("p", {
-    className: "properties-empty-state"
-  }, "\u042D\u043B\u0435\u043C\u0435\u043D\u0442\u044B \u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D\u044B"))), lineElements.length > 0 && /*#__PURE__*/external_React_default().createElement(Sidebar_LineProperties, {
+  })))), lineElements.length > 0 && /*#__PURE__*/external_React_default().createElement(Sidebar_LineProperties, {
     elements: lineElements
   }), arcElements.length === 1 && /*#__PURE__*/external_React_default().createElement(Sidebar_ArcProperties, {
     element: arcElements[0]
@@ -6401,49 +6982,85 @@ function PropertiesPanel_PropertiesPanel(_ref) {
 }
 /* harmony default export */ const components_Sidebar_PropertiesPanel = (PropertiesPanel_PropertiesPanel);
 ;// ./admin/js/src/utils/api.js
-var _window$plintusEditor, _window$plintusEditor2;
 function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i["return"]) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
 function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
 function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
 function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
-var API_BASE = ((_window$plintusEditor = window.plintusEditor) === null || _window$plintusEditor === void 0 ? void 0 : _window$plintusEditor.apiUrl) || '/wp-json/plintus-paperjs/v1/';
-var NONCE = ((_window$plintusEditor2 = window.plintusEditor) === null || _window$plintusEditor2 === void 0 ? void 0 : _window$plintusEditor2.nonce) || '';
+// Функция для получения API_BASE и NONCE (может быть из window.plintusEditor или window.plintusEditorInstances)
+function getApiConfig() {
+  var _window$plintusEditor, _window$plintusEditor2;
+  var apiUrl = ((_window$plintusEditor = window.plintusEditor) === null || _window$plintusEditor === void 0 ? void 0 : _window$plintusEditor.apiUrl) || '/wp-json/plintus-paperjs/v1/';
+  var nonce = ((_window$plintusEditor2 = window.plintusEditor) === null || _window$plintusEditor2 === void 0 ? void 0 : _window$plintusEditor2.nonce) || '';
+
+  // Если это фронтенд (шорткод), данные могут быть в window.plintusEditorInstances
+  if (!nonce && typeof window.plintusEditorInstances !== 'undefined') {
+    var _document$querySelect;
+    var containerId = (_document$querySelect = document.querySelector('.plintus-editor-container')) === null || _document$querySelect === void 0 ? void 0 : _document$querySelect.id;
+    if (containerId && window.plintusEditorInstances[containerId]) {
+      var editorData = window.plintusEditorInstances[containerId];
+      apiUrl = editorData.apiUrl || apiUrl;
+      nonce = editorData.nonce || nonce;
+    }
+  }
+  return {
+    apiUrl: apiUrl,
+    nonce: nonce
+  };
+}
+
+// Определяем, находимся ли мы в админке
+var IS_ADMIN = typeof window.location !== 'undefined' && window.location.href.includes('/wp-admin/');
 function loadProfileData(_x) {
   return _loadProfileData.apply(this, arguments);
 }
 function _loadProfileData() {
   _loadProfileData = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee(profileId) {
-    var response, _t;
+    var _getApiConfig, apiUrl, headers, response, errorText, _t;
     return _regenerator().w(function (_context) {
       while (1) switch (_context.p = _context.n) {
         case 0:
           _context.p = 0;
+          _getApiConfig = getApiConfig(), apiUrl = _getApiConfig.apiUrl; // Для GET-запросов не передаем nonce на фронтенде
+          // На фронтенде permission_callback = __return_true, поэтому nonce не нужен
+          headers = {};
           _context.n = 1;
-          return fetch("".concat(API_BASE, "profiles/").concat(profileId, "/data"), {
+          return fetch("".concat(apiUrl, "profiles/").concat(profileId, "/data"), {
             method: 'GET',
-            headers: {
-              'X-WP-Nonce': NONCE
-            }
+            headers: headers,
+            credentials: 'same-origin' // Важно для работы с cookies
           });
         case 1:
           response = _context.v;
           if (response.ok) {
-            _context.n = 2;
+            _context.n = 4;
             break;
           }
-          throw new Error('Failed to load profile data');
+          _context.n = 2;
+          return response.text();
         case 2:
-          _context.n = 3;
-          return response.json();
+          errorText = _context.v;
+          console.error('Failed to load profile data:', response.status, response.statusText, errorText);
+          // Если это 403 и мы на фронтенде, это может быть нормально - просто возвращаем null
+          if (!(response.status === 403)) {
+            _context.n = 3;
+            break;
+          }
+          console.warn('Access denied to profile data. This may be expected on frontend.');
+          return _context.a(2, null);
         case 3:
-          return _context.a(2, _context.v);
+          throw new Error("Failed to load profile data: ".concat(response.status, " ").concat(response.statusText));
         case 4:
-          _context.p = 4;
+          _context.n = 5;
+          return response.json();
+        case 5:
+          return _context.a(2, _context.v);
+        case 6:
+          _context.p = 6;
           _t = _context.v;
           console.error('Error loading profile data:', _t);
           return _context.a(2, null);
       }
-    }, _callee, null, [[0, 4]]);
+    }, _callee, null, [[0, 6]]);
   }));
   return _loadProfileData.apply(this, arguments);
 }
@@ -6452,41 +7069,68 @@ function saveProfileData(_x2, _x3) {
 }
 function _saveProfileData() {
   _saveProfileData = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(profileId, data) {
-    var response, _t2;
+    var _getApiConfig2, apiUrl, nonce, response, errorText, _t2;
     return _regenerator().w(function (_context2) {
       while (1) switch (_context2.p = _context2.n) {
         case 0:
           _context2.p = 0;
-          _context2.n = 1;
-          return fetch("".concat(API_BASE, "profiles/").concat(profileId, "/data"), {
+          _getApiConfig2 = getApiConfig(), apiUrl = _getApiConfig2.apiUrl, nonce = _getApiConfig2.nonce; // Проверяем наличие nonce перед отправкой
+          if (nonce) {
+            _context2.n = 1;
+            break;
+          }
+          return _context2.a(2, null);
+        case 1:
+          _context2.n = 2;
+          return fetch("".concat(apiUrl, "profiles/").concat(profileId, "/data"), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-WP-Nonce': NONCE
+              'X-WP-Nonce': nonce
             },
+            credentials: 'same-origin',
+            // Важно для работы с cookies
             body: JSON.stringify({
               data: data
             })
           });
-        case 1:
+        case 2:
           response = _context2.v;
           if (response.ok) {
-            _context2.n = 2;
+            _context2.n = 5;
             break;
           }
-          throw new Error('Failed to save profile data');
-        case 2:
-          _context2.n = 3;
-          return response.json();
+          if (!(response.status === 403)) {
+            _context2.n = 3;
+            break;
+          }
+          return _context2.a(2, null);
         case 3:
-          return _context2.a(2, _context2.v);
+          _context2.n = 4;
+          return response.text();
         case 4:
-          _context2.p = 4;
+          errorText = _context2.v;
+          console.error('Failed to save profile data:', response.status, response.statusText, errorText);
+          throw new Error("Failed to save profile data: ".concat(response.status, " ").concat(response.statusText));
+        case 5:
+          _context2.n = 6;
+          return response.json();
+        case 6:
+          return _context2.a(2, _context2.v);
+        case 7:
+          _context2.p = 7;
           _t2 = _context2.v;
+          if (!(_t2.message && (_t2.message.includes('403') || _t2.message.includes('NetworkError')))) {
+            _context2.n = 8;
+            break;
+          }
+          return _context2.a(2, null);
+        case 8:
+          // Выводим только реальные ошибки
           console.error('Error saving profile data:', _t2);
           return _context2.a(2, null);
       }
-    }, _callee2, null, [[0, 4]]);
+    }, _callee2, null, [[0, 7]]);
   }));
   return _saveProfileData.apply(this, arguments);
 }
@@ -6530,12 +7174,30 @@ var App_update = injectStylesIntoStyleTag_default()(App/* default */.A, App_opti
 
 
 
+// Определяем, находимся ли мы в админке
+// wpApiSettings может быть доступен и на фронтенде, поэтому проверяем URL
+var App_IS_ADMIN = typeof window.location !== 'undefined' && window.location.href.includes('/wp-admin/');
 function App_App() {
-  var _window$plintusEditor;
+  var _window$plintusEditor, _window$plintusEditor2, _window$plintusEditor3;
   var _useEditorStore = useEditorStore(),
     selectedElements = _useEditorStore.selectedElements,
     loadProfile = _useEditorStore.loadProfile;
+
+  // Определяем profileId и readonly из window.plintusEditor или window.plintusEditorInstances
   var profileId = (_window$plintusEditor = window.plintusEditor) === null || _window$plintusEditor === void 0 ? void 0 : _window$plintusEditor.profileId;
+  var readonly = ((_window$plintusEditor2 = window.plintusEditor) === null || _window$plintusEditor2 === void 0 ? void 0 : _window$plintusEditor2.readonly) === true || ((_window$plintusEditor3 = window.plintusEditor) === null || _window$plintusEditor3 === void 0 ? void 0 : _window$plintusEditor3.readonly) === 'true';
+
+  // Если это фронтенд (шорткод), данные могут быть в window.plintusEditorInstances
+  if (!profileId && typeof window.plintusEditorInstances !== 'undefined') {
+    var _document$querySelect;
+    // Пытаемся найти данные для текущего контейнера
+    var containerId = (_document$querySelect = document.querySelector('.plintus-editor-container')) === null || _document$querySelect === void 0 ? void 0 : _document$querySelect.id;
+    if (containerId && window.plintusEditorInstances[containerId]) {
+      var editorData = window.plintusEditorInstances[containerId];
+      profileId = editorData.profileId;
+      readonly = editorData.readonly === true || editorData.readonly === 'true';
+    }
+  }
   (0,external_React_.useEffect)(function () {
     // Загружаем данные профиля при монтировании
     if (profileId) {
@@ -6547,8 +7209,31 @@ function App_App() {
     }
   }, [profileId, loadProfile]);
 
-  // Автосохранение через таймер
+  // Автосохранение через таймер (только если не readonly и есть nonce)
   (0,external_React_.useEffect)(function () {
+    var _window$plintusEditor4;
+    // Не сохраняем в режиме только для чтения
+    if (readonly) {
+      return;
+    }
+
+    // Проверяем наличие nonce (работает и в админке, и в шорткоде)
+    var hasNonce = false;
+    if ((_window$plintusEditor4 = window.plintusEditor) !== null && _window$plintusEditor4 !== void 0 && _window$plintusEditor4.nonce) {
+      hasNonce = !!window.plintusEditor.nonce;
+    } else if (typeof window.plintusEditorInstances !== 'undefined') {
+      var _document$querySelect2, _window$plintusEditor5;
+      var _containerId = (_document$querySelect2 = document.querySelector('.plintus-editor-container')) === null || _document$querySelect2 === void 0 ? void 0 : _document$querySelect2.id;
+      if (_containerId && (_window$plintusEditor5 = window.plintusEditorInstances[_containerId]) !== null && _window$plintusEditor5 !== void 0 && _window$plintusEditor5.nonce) {
+        hasNonce = !!window.plintusEditorInstances[_containerId].nonce;
+      }
+    }
+
+    // Автосохранение работает только если есть nonce (пользователь авторизован)
+    // Это работает и в админке, и в шорткоде
+    if (!hasNonce) {
+      return; // Без nonce не сохраняем
+    }
     var interval = setInterval(function () {
       var _useEditorStore$getSt = useEditorStore.getState(),
         elements = _useEditorStore$getSt.elements,
@@ -6566,10 +7251,14 @@ function App_App() {
     return function () {
       return clearInterval(interval);
     };
-  }, [profileId]);
+  }, [profileId, readonly]);
   return /*#__PURE__*/external_React_default().createElement("div", {
     className: "plintus-editor"
-  }, /*#__PURE__*/external_React_default().createElement(components_Toolbar_Toolbar, null), /*#__PURE__*/external_React_default().createElement("div", {
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "plintus-editor-header"
+  }, /*#__PURE__*/external_React_default().createElement("h1", {
+    className: "plintus-editor-title"
+  }, "\u041A\u043E\u043D\u0441\u0442\u0440\u0443\u043A\u0442\u043E\u0440 \u043F\u0440\u043E\u0444\u0438\u043B\u044F")), /*#__PURE__*/external_React_default().createElement("div", {
     className: "plintus-editor-content"
   }, /*#__PURE__*/external_React_default().createElement(components_Toolbar_VerticalToolbar, null), /*#__PURE__*/external_React_default().createElement("div", {
     className: "plintus-editor-canvas-wrapper"
@@ -6585,8 +7274,9 @@ function App_App() {
 
 // Инициализация для админки (старый контейнер)
 var adminContainer = document.getElementById('plintus-profile-editor-paperjs-root');
-if (adminContainer) {
+if (adminContainer && !adminContainer.dataset.initialized) {
   try {
+    adminContainer.dataset.initialized = 'true';
     var root = client.createRoot(adminContainer);
     root.render(/*#__PURE__*/external_React_default().createElement(js_src_App, null));
   } catch (error) {
@@ -6612,6 +7302,11 @@ function initFrontendEditor(containerId) {
   var originalEditor = window.plintusEditor;
   window.plintusEditor = editorData;
   try {
+    // Проверяем, не создан ли уже root для этого контейнера
+    if (container.dataset.initialized === 'true') {
+      return; // Уже инициализирован
+    }
+    container.dataset.initialized = 'true';
     var _root = client.createRoot(container);
     _root.render(/*#__PURE__*/external_React_default().createElement(js_src_App, null));
 
