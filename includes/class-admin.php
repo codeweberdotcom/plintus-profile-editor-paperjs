@@ -86,6 +86,9 @@ class Admin {
             Plugin::get_version()
         );
 
+        // Подключаем стили Unicons из темы Codeweber
+        $this->enqueue_unicons_styles();
+
         // Передаем данные в JavaScript
         wp_localize_script('plintus-profile-editor-paperjs', 'plintusEditor', array(
             'apiUrl' => rest_url('plintus-paperjs/v1/'),
@@ -127,6 +130,99 @@ class Admin {
             return '';
         }
         return $return;
+    }
+
+    /**
+     * Подключить стили Unicons из темы Codeweber
+     */
+    private function enqueue_unicons_styles() {
+        $theme_path = get_template_directory();
+        $theme_uri = get_template_directory_uri();
+        $icons_scss_path = $theme_path . '/src/assets/scss/theme/_icons.scss';
+
+        if (!file_exists($icons_scss_path)) {
+            return;
+        }
+
+        $icons_scss_content = file_get_contents($icons_scss_path);
+        $icons_css = '';
+
+        // Извлекаем блок @font-face для Unicons
+        if (preg_match('/@font-face\s*\{[^}]*font-family:\s*[\'"]Unicons[\'"][^}]*src:[^}]*\}/s', $icons_scss_content, $font_face_match)) {
+            // Заменяем относительные пути на абсолютные URL
+            $font_face_css = preg_replace(
+                '/url\([\'"]?\.\.\/fonts\/unicons\/([^\'"]+)[\'"]?\)/',
+                "url('{$theme_uri}/dist/assets/fonts/unicons/$1')",
+                $font_face_match[0]
+            );
+            $icons_css .= $font_face_css . "\n";
+        }
+
+        // Извлекаем все определения .uil-*:before построчно
+        $lines = explode("\n", $icons_scss_content);
+        $in_icon_block = false;
+        $current_icon_block = '';
+
+        foreach ($lines as $line) {
+            $trimmed_line = trim($line);
+
+            // Начало блока иконки: .uil-icon-name:before {
+            if (preg_match('/^\.(uil-[a-zA-Z0-9\-]+):before\s*\{/', $trimmed_line)) {
+                $in_icon_block = true;
+                $current_icon_block = $trimmed_line . "\n";
+                continue;
+            }
+
+            // Внутри блока иконки
+            if ($in_icon_block) {
+                $current_icon_block .= $trimmed_line . "\n";
+
+                // Конец блока (закрывающая скобка)
+                if (strpos($trimmed_line, '}') !== false) {
+                    $icons_css .= $current_icon_block;
+                    $in_icon_block = false;
+                    $current_icon_block = '';
+                }
+            }
+        }
+
+        // Базовые стили для иконок
+        $unicons_font_css = "
+        @font-face {
+            font-family: 'Unicons';
+            src: url('{$theme_uri}/dist/assets/fonts/unicons/Unicons.woff2') format('woff2'),
+                url('{$theme_uri}/dist/assets/fonts/unicons/Unicons.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+            font-display: block;
+        }
+        [class^=\"uil-\"],
+        [class*=\" uil-\"] {
+            speak: none;
+            font-style: normal;
+            font-weight: normal;
+            font-variant: normal;
+            text-transform: none;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            word-spacing: normal;
+            font-family: \"Unicons\" !important;
+        }
+        [class^=\"uil-\"]:before,
+        [class*=\" uil-\"]:before {
+            display: inline-block;
+            font-family: \"Unicons\" !important;
+            font-style: normal;
+            font-weight: normal;
+            font-variant: normal;
+            text-transform: none;
+            line-height: 1;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        " . $icons_css;
+
+        wp_add_inline_style('plintus-profile-editor-paperjs-admin', $unicons_font_css);
     }
 }
 
